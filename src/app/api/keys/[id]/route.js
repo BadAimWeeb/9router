@@ -22,7 +22,7 @@ export async function PUT(request, { params }) {
   try {
     const { id } = await params;
     const body = await request.json();
-    const { isActive, access } = body;
+    const { isActive, access, quotaAccess } = body;
 
     const existing = await getApiKeyById(id);
     if (!existing) {
@@ -35,6 +35,12 @@ export async function PUT(request, { params }) {
       const checked = validateKeyAccessInput(access);
       if (!checked.ok) return NextResponse.json({ error: checked.error }, { status: 400 });
       updateData.access = checked.value;
+    }
+    if (quotaAccess !== undefined) {
+      if (quotaAccess !== "full" && quotaAccess !== "anonymized") {
+        return NextResponse.json({ error: "Invalid quotaAccess mode" }, { status: 400 });
+      }
+      updateData.quotaAccess = quotaAccess;
     }
 
     const updated = await updateApiKey(id, updateData);
