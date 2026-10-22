@@ -19,6 +19,7 @@ import StatusAlert from "./components/StatusAlert";
 import Tooltip from "./components/Tooltip";
 import SecurityWarning from "./components/SecurityWarning";
 import KeyAccessControls from "./components/KeyAccessControls";
+import QuotaAccessControls from "./components/QuotaAccessControls";
 export default function APIPageClient({ machineId }) {
   const [keys, setKeys] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -675,6 +676,25 @@ export default function APIPageClient({ machineId }) {
     }
   };
 
+  // Save a key's quota-view mode (full | anonymized) for /api/quota.
+  const handleUpdateQuotaAccess = async (id, quotaAccess) => {
+    try {
+      const res = await fetch(`/api/keys/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quotaAccess }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.key) {
+        setKeys(prev => prev.map(k => k.id === id ? { ...k, quotaAccess: data.key.quotaAccess } : k));
+      } else {
+        console.log("Error updating key quota access:", data.error || res.status);
+      }
+    } catch (error) {
+      console.log("Error updating key quota access:", error);
+    }
+  };
+
   // Save a key's access (restricted flag + allow list).
   const handleUpdateKeyAccess = async (id, access) => {
     try {
@@ -1056,6 +1076,10 @@ export default function APIPageClient({ machineId }) {
                   {key.isActive === false && (
                     <p className="text-xs text-orange-500 mt-1">Paused</p>
                   )}
+                  <QuotaAccessControls
+                    apiKey={key}
+                    onChange={(quotaAccess) => handleUpdateQuotaAccess(key.id, quotaAccess)}
+                  />
                   <KeyAccessControls
                     apiKey={key}
                     onChange={(access) => handleUpdateKeyAccess(key.id, access)}

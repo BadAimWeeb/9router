@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { deleteApiKey, getApiKeyById, updateApiKey } from "@/lib/localDb";
 import { validateKeyAccessInput } from "@/shared/utils/keyAccess.js";
+import { QUOTA_ACCESS_MODES } from "@/shared/utils/quotaAccess.js";
 
 // GET /api/keys/[id] - Get single key
 export async function GET(request, { params }) {
@@ -22,7 +23,7 @@ export async function PUT(request, { params }) {
   try {
     const { id } = await params;
     const body = await request.json();
-    const { isActive, access } = body;
+    const { isActive, access, quotaAccess } = body;
 
     const existing = await getApiKeyById(id);
     if (!existing) {
@@ -35,6 +36,12 @@ export async function PUT(request, { params }) {
       const checked = validateKeyAccessInput(access);
       if (!checked.ok) return NextResponse.json({ error: checked.error }, { status: 400 });
       updateData.access = checked.value;
+    }
+    if (quotaAccess !== undefined) {
+      if (!QUOTA_ACCESS_MODES.includes(quotaAccess)) {
+        return NextResponse.json({ error: "Invalid quotaAccess mode" }, { status: 400 });
+      }
+      updateData.quotaAccess = quotaAccess;
     }
 
     const updated = await updateApiKey(id, updateData);
