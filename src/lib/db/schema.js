@@ -87,6 +87,10 @@ export const TABLES = {
       // syncSchemaFromTables() on boot; existing rows read as unrestricted (0).
       accessRestricted: "INTEGER DEFAULT 0",
       accessAllow: "TEXT",
+      // Quota visibility for this key on /api/quota: "none" (default — key is
+      // denied), "full", "anonymized-account" or "anonymized-aggregate".
+      // Additive column, synced on boot; legacy/empty rows read as "none".
+      quotaAccess: "TEXT",
     },
     indexes: ["CREATE INDEX IF NOT EXISTS idx_ak_key ON apiKeys(key)"],
   },
