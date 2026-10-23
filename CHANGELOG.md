@@ -1,4 +1,8 @@
-# Unreleased
+# v0.5.105 (2026-10-22)
+
+## Features
+- **Quota API**: add per-key quota views (Full, Anonymized Account, Anonymized Aggregate, and None), defaulting to None; restrict quota providers to the key's model allowlist.
+- **Web APIs**: add Open WebUI-compatible external search and web loader endpoints with the provider/model in the URL path.
 
 ## Fixes
 - **OpenCode Free**: honor the `low|high|max` reasoning efforts of `oc/deepseek-v4.1-flash-free` — the generic DeepSeek level set no longer advertises medium/xhigh, and `low` now reaches the upstream verbatim instead of collapsing to `high`
