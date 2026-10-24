@@ -285,6 +285,18 @@ describe("dashboard guard local-only access", () => {
 
     expect(response).toBe(mocks.nextResponse);
   });
+
+  it("keeps ZCode captcha callbacks local-only", async () => {
+    mocks.getSettings.mockResolvedValue({ requireLogin: false });
+    const remote = await proxy(request("/api/zcode/captcha/submit", { host: "router.example.com" }));
+    expect(remote.status).toBe(403);
+
+    const local = await proxy(localRequest("/api/zcode/captcha/submit", {
+      host: "localhost:20128",
+      origin: "http://localhost:20128",
+    }));
+    expect(local).toBe(mocks.nextResponse);
+  });
 });
 
 describe("dashboard guard helpers", () => {

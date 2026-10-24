@@ -11,8 +11,8 @@ export function toProviderConnectionResponse(connection) {
     return safe;
   }
 
-  const { sessionToken, zcodeJwtToken, zaiBusinessToken, zaiRefreshToken, individualCodingPlanApiKey, teamCodingPlanApiKey, ...providerSpecificData } = connection.providerSpecificData;
-  if (!usesAwsCredentialForm(connection.provider) && zcodeJwtToken === undefined && zaiBusinessToken === undefined && zaiRefreshToken === undefined && individualCodingPlanApiKey === undefined && teamCodingPlanApiKey === undefined) {
+  const { sessionToken, zcodeJwtToken, zaiBusinessToken, zaiRefreshToken, individualCodingPlanApiKey, teamCodingPlanApiKey, _captchaVerifyParam, ...providerSpecificData } = connection.providerSpecificData;
+  if (!usesAwsCredentialForm(connection.provider) && zcodeJwtToken === undefined && zaiBusinessToken === undefined && zaiRefreshToken === undefined && individualCodingPlanApiKey === undefined && teamCodingPlanApiKey === undefined && _captchaVerifyParam === undefined) {
     return safe;
   }
   return { ...safe, providerSpecificData };

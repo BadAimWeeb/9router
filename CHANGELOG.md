@@ -1,4 +1,4 @@
-# v0.5.110 (2026-10-24)
+# v0.5.111 (2026-10-24)
 
 ## Features
 - **Z.ai GLM**: support selectable Individual, Team, and Start plans from one ZCode login, with plan-specific credentials and routing; retain off-peak/highspeed modes internally until ZCode exposes public captcha/signing support

@@ -15,6 +15,9 @@ import { resolveTransport } from "../../open-sse/services/provider.js";
 import { USAGE_SUPPORTED_PROVIDERS } from "../../src/shared/constants/providers.js";
 import { getUsageForProvider } from "../../open-sse/services/usage.js";
 import { DefaultExecutor } from "../../open-sse/executors/default.js";
+import { GlmExecutor } from "../../open-sse/executors/glm.js";
+import { applyZcodeHeaders, __test__ as zcodeHeaderTest } from "../../src/lib/zcode/headers.js";
+import { injectZcodeSystemPrompt } from "../../src/lib/zcode/systemPrompt.js";
 
 const ANTHROPIC_URL = "https://api.z.ai/api/anthropic/v1/messages";
 const ZCODE_PLAN_URL = "https://zcode.z.ai/api/v1/zcode-plan/anthropic/v1/messages";
@@ -44,6 +47,7 @@ describe("glm registry entry (dual-auth)", () => {
   it("declares selectable ZCode plans while keeping hidden card modes out of the UI", () => {
     expect(TRANSPORTS.glm.defaultPlan).toBe("individual-coding-plan");
     expect(TRANSPORTS.glm.plans["start-plan"].baseUrl).toBe(ZCODE_PLAN_URL);
+    expect(TRANSPORTS.glm.plans["start-plan"].supportedModels).toContain("glm-5.3");
     expect(TRANSPORTS.glm.plans["off-peak"].hidden).toBe(true);
     expect(TRANSPORTS.glm.plans.highspeed.hidden).toBe(true);
   });
@@ -242,6 +246,52 @@ describe("glm executor + usage (dual-auth credentials)", () => {
     expect(resolveTransport("glm", "claude", creds)?.baseUrl).toBe(ZCODE_PLAN_URL);
   });
 
+  it("uses the specialized executor for Start Plan processing", () => {
+    expect(new GlmExecutor()).toBeInstanceOf(DefaultExecutor);
+  });
+
+  it("adds the ZCode fingerprint and strips Claude API headers", () => {
+    zcodeHeaderTest.sessions.clear();
+    const headers = applyZcodeHeaders({
+      "Anthropic-Version": "2023-06-01",
+      "Anthropic-Beta": "claude-code-20250219",
+      "x-api-key": "wrong-key",
+    }, {
+      connectionId: "glm-1",
+      providerSpecificData: { zcodeJwtToken: "zcode-jwt" },
+    }, "captcha-token");
+
+    expect(headers.Authorization).toBe("Bearer zcode-jwt");
+    expect(headers["User-Agent"]).toMatch(/^ZCode\//);
+    expect(headers["X-ZCode-App-Version"]).toBeTruthy();
+    expect(headers["X-ZCode-Agent"]).toBe("glm");
+    expect(headers["X-Aliyun-Captcha-Verify-Param"]).toBe("captcha-token");
+    expect(headers["x-session-id"]).toBeTruthy();
+    expect(headers["Anthropic-Version"]).toBeUndefined();
+    expect(headers["Anthropic-Beta"]).toBeUndefined();
+    expect(headers["x-api-key"]).toBeUndefined();
+  });
+
+  it("maps GLM-5.3 and replaces Claude Code identity for Start Plan", () => {
+    const executor = new GlmExecutor();
+    const result = executor.transformRequest("glm-5.3", {
+      model: "glm-5.3",
+      system: [{ type: "text", text: "You are Claude Code, Anthropic's official CLI for Claude." }],
+      messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
+    }, false, {
+      providerSpecificData: { plan: "start-plan", zcodeJwtToken: "zcode-jwt" },
+    });
+
+    expect(result.model).toBe("GLM-5.3");
+    expect(JSON.stringify(result.system)).toContain("You are ZCode");
+    expect(JSON.stringify(result.system)).not.toContain("Claude Code");
+  });
+
+  it("keeps ZCode system injection idempotent", () => {
+    const first = injectZcodeSystemPrompt({ model: "GLM-5.3", system: [] }, "GLM-5.3");
+    expect(injectZcodeSystemPrompt(first, "GLM-5.3").system).toEqual(first.system);
+  });
+
   it("switches between the individual and team Coding Plan keys", () => {
     const executor = new DefaultExecutor("glm");
     const base = {
@@ -265,11 +315,11 @@ describe("glm executor + usage (dual-auth credentials)", () => {
     expect(executor.buildHeaders(team, true, ANTHROPIC_URL, "glm-5.3", {})["x-api-key"]).toBe("teamkey.teamsecret");
   });
 
-  it("rejects unsupported Start Plan models and missing ZCode JWTs", () => {
+  it("accepts GLM-5.3 on Start Plan and rejects missing ZCode JWTs", () => {
     const executor = new DefaultExecutor("glm");
-    expect(() => executor.buildUrl("glm-5.3", true, 0, {
+    expect(executor.buildUrl("glm-5.3", true, 0, {
       providerSpecificData: { plan: "start-plan", zcodeJwtToken: "zcode-jwt" },
-    })).toThrow(/does not support model glm-5\.3/);
+    })).toBe(ZCODE_PLAN_URL);
     expect(() => executor.buildHeaders({ providerSpecificData: { plan: "start-plan" } }, true, ZCODE_PLAN_URL, "glm-5.2", {}))
       .toThrow(/requires zcodeJwtToken/);
   });

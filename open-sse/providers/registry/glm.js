@@ -24,11 +24,11 @@ export default {
   plans: [
     { id: "individual-coding-plan", label: "Individual Coding Plan", authModes: ["oauth", "apikey"] },
     { id: "team-coding-plan", label: "Team Coding Plan", authModes: ["oauth", "apikey"] },
-    { id: "start-plan", label: "Start Plan (experimental: ZCode risk control may reject requests)", authModes: ["oauth"] },
+    { id: "start-plan", label: "Start Plan", authModes: ["oauth"] },
   ],
   defaultPlan: "individual-coding-plan",
-  // ponytail: hidden card modes are runtime-only until ZCode exposes a public
-  // captcha/signing flow; add them to `plans` when third-party clients can use it.
+  // ponytail: off-peak/highspeed stay hidden because ZCode marks these card
+  // modes hidden; expose them if ZCode promotes them to public plan choices.
   // OAuth = ZCode CLI polling flow (apps/zcode-cli cli-oauth.ts) — no PKCE, no
   // local callback: init mints a one-off poll token, the browser authorize_url
   // is server-generated, and poll/ready carries the tokens. The Z.AI OAuth
@@ -65,14 +65,14 @@ export default {
       "start-plan": {
         baseUrl: "https://zcode.z.ai/api/v1/zcode-plan/anthropic/v1/messages",
         format: "claude",
-        headers: { ...CLAUDE_API_HEADERS },
+        headers: {},
         auth: { combined: true, header: "Authorization", scheme: "bearer", tokenField: "zcodeJwtToken" },
-        supportedModels: ["glm-5.3-flash", "glm-5.2", "glm-5-turbo"],
+        supportedModels: ["glm-5.3", "glm-5.3-flash", "glm-5.2", "glm-5-turbo"],
       },
       "off-peak": {
         baseUrl: "https://zcode.z.ai/api/v1/off-peak/anthropic/v1/messages",
         format: "claude",
-        headers: { ...CLAUDE_API_HEADERS },
+        headers: {},
         auth: { combined: true, header: "Authorization", scheme: "bearer", tokenField: "zcodeJwtToken" },
         supportedModels: ["glm-5.3", "glm-5.3-flash"],
         hidden: true,
@@ -80,7 +80,7 @@ export default {
       highspeed: {
         baseUrl: "https://zcode.z.ai/api/v1/highspeed/anthropic/v1/messages",
         format: "claude",
-        headers: { ...CLAUDE_API_HEADERS },
+        headers: {},
         auth: { combined: true, header: "Authorization", scheme: "bearer", tokenField: "zcodeJwtToken" },
         supportedModels: ["glm-5.3", "glm-5.3-flash"],
         hidden: true,

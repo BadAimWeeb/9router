@@ -17,6 +17,7 @@ describe("GLM provider API response", () => {
         zaiRefreshToken: "refresh-token",
         individualCodingPlanApiKey: "individual-key",
         teamCodingPlanApiKey: "team-key",
+        _captchaVerifyParam: "captcha-token",
       },
     });
 
