@@ -11,7 +11,6 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 import { getWritableDataDir } from "../utils/writableDataDir.js";
 
@@ -28,6 +27,10 @@ function getRuntimeDir() {
 function isModuleMissing(error) {
   const code = String(error?.code || "");
   return code === "MODULE_NOT_FOUND" || code === "ERR_MODULE_NOT_FOUND";
+}
+
+function runtimeModuleUrl(pkg) {
+  return pathToFileURL(path.join(getRuntimeDir(), "node_modules", pkg)).href;
 }
 
 function npmInstall(pkg, version) {
@@ -54,9 +57,8 @@ async function load(pkg) {
     if (!isModuleMissing(error)) throw error;
   }
   // 2) Already present in the runtime dir from a previous install.
-  const runtimeRequire = createRequire(path.join(getRuntimeDir(), "package.json"));
   try {
-    return await import(pathToFileURL(runtimeRequire.resolve(pkg)).href);
+    return await import(/* webpackIgnore: true */ runtimeModuleUrl(pkg));
   } catch (error) {
     if (!isModuleMissing(error)) throw error;
   }
@@ -71,7 +73,7 @@ async function load(pkg) {
       `install it manually: cd "${dir}" && npm install ${pkg}@${version}`
     );
   }
-  return import(pathToFileURL(createRequire(path.join(dir, "package.json")).resolve(pkg)).href);
+  return import(/* webpackIgnore: true */ runtimeModuleUrl(pkg));
 }
 
 export function loadRuntimeDep(pkg) {

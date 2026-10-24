@@ -17,4 +17,13 @@ describe("ZCode captcha handling", () => {
     expect(manager.cachedVerifyParam).toBeNull();
     vi.useRealTimers();
   });
+
+  it("resolves a captured pending verification", async () => {
+    const manager = new CaptchaManager();
+    manager.openPage = vi.fn(async () => {});
+    const pending = manager.getVerifyParam();
+    manager.submit("verify-param");
+    await expect(pending).resolves.toBe("verify-param");
+    expect(manager.pending).toBeNull();
+  });
 });

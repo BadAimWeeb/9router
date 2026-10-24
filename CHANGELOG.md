@@ -1,3 +1,8 @@
+# v0.5.112 (2026-10-24)
+
+## Fixes
+- **Z.ai GLM**: fix production Start Plan captcha startup by replacing a webpack-broken runtime dependency resolver; make captcha completion race-safe
+
 # v0.5.111 (2026-10-24)
 
 ## Features

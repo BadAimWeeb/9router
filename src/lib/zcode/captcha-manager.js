@@ -93,10 +93,11 @@ export class CaptchaManager {
     if (this.cacheTimer) clearTimeout(this.cacheTimer);
     this.cacheTimer = setTimeout(() => { this.cachedVerifyParam = null; }, ZCODE_CONFIG.captchaCacheTtlMs);
     this.cacheTimer.unref?.();
-    if (this.pending) {
-      clearTimeout(this.pending.timer);
-      this.pending.resolve(value);
+    const pending = this.pending;
+    if (pending) {
+      clearTimeout(pending.timer);
       this.pending = null;
+      pending.resolve(value);
     }
   }
 
