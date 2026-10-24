@@ -156,6 +156,7 @@ const OAUTH_TEST_CONFIG = {
     extraHeaders: { "x-api-version": "1.0.0" },
     refreshable: false,
   },
+  glm: { tokenExists: true },
   nous: {
     url: NOUS_CHAT_COMPLETIONS_URL,
     method: "POST",

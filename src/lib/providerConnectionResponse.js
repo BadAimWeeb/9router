@@ -7,10 +7,13 @@ export function usesAwsCredentialForm(provider) {
 export function toProviderConnectionResponse(connection) {
   const { apiKey, accessToken, refreshToken, idToken, ...safe } = connection;
 
-  if (!usesAwsCredentialForm(connection.provider) || !connection.providerSpecificData) {
+  if (!connection.providerSpecificData) {
     return safe;
   }
 
-  const { sessionToken, ...providerSpecificData } = connection.providerSpecificData;
+  const { sessionToken, zcodeJwtToken, zaiBusinessToken, zaiRefreshToken, individualCodingPlanApiKey, teamCodingPlanApiKey, ...providerSpecificData } = connection.providerSpecificData;
+  if (!usesAwsCredentialForm(connection.provider) && zcodeJwtToken === undefined && zaiBusinessToken === undefined && zaiRefreshToken === undefined && individualCodingPlanApiKey === undefined && teamCodingPlanApiKey === undefined) {
+    return safe;
+  }
   return { ...safe, providerSpecificData };
 }
