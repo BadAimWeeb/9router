@@ -1,3 +1,8 @@
+# v0.5.115-beta.2 (2026-10-25)
+
+## Fixes
+- **Docker**: switch the runner to Debian glibc and install Chromium/Xvfb libraries required by CloakBrowser; Alpine reported the glibc browser binary as missing and crashed under musl compatibility
+
 # v0.5.115-beta.1 (2026-10-25)
 
 ## Fixes
