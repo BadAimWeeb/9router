@@ -1,3 +1,8 @@
+# v0.5.115-beta.3 (2026-10-25)
+
+## Features
+- **Compatible Nodes**: allow custom upstream headers for OpenAI- and Anthropic-compatible nodes
+
 # v0.5.115-beta.2 (2026-10-25)
 
 ## Fixes
