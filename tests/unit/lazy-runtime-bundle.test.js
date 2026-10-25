@@ -7,5 +7,6 @@ describe("lazy runtime production bundling", () => {
     expect(source).not.toContain("createRequire");
     expect(source).not.toContain(".resolve(pkg)");
     expect(source).toContain("node_modules");
+    expect(source).toContain('cloakbrowser: "^0.3.31"');
   });
 });

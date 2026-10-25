@@ -16,6 +16,7 @@ import { getWritableDataDir } from "../utils/writableDataDir.js";
 
 // Keep in sync with package.json devDependencies.
 const LAZY_DEP_VERSIONS = {
+  cloakbrowser: "^0.3.31",
   "playwright-core": "^1.62.1",
   "wreq-js": "^3.2.0",
 };

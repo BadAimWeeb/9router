@@ -1,3 +1,8 @@
+# v0.5.114 (2026-10-24)
+
+## Fixes
+- **Z.ai GLM**: lazily install and use CloakBrowser for Start Plan captcha verification instead of silently falling back to detectable Chromium; log browser-side captcha failures
+
 # v0.5.113 (2026-10-24)
 
 ## Fixes

@@ -39,6 +39,9 @@ export class CaptchaManager {
       throw new Error("ZCode captcha requires Obscura or optional cloakbrowser stealth runtime");
     }
     this.page = await openPage(pooled);
+    this.page.on("console", (message) => console.log(`[ZCode Captcha] ${message.text()}`));
+    this.page.on("pageerror", (error) => console.error("[ZCode Captcha] page error:", error.message));
+    this.page.on("requestfailed", (request) => console.warn("[ZCode Captcha] request failed:", request.url(), request.failure()?.errorText));
     await this.page.goto(
       `http://127.0.0.1:${ZCODE_CONFIG.captchaPort}/zcode/captcha.html${headless ? "" : "?mode=interactive"}`,
       { waitUntil: "domcontentloaded", timeout: 30000 },
