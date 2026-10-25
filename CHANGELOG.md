@@ -1,3 +1,8 @@
+# v0.5.113 (2026-10-24)
+
+## Fixes
+- **Z.ai GLM**: allow proven loopback captcha callbacks without a dashboard session so Start Plan verification can complete in production; remote callbacks remain blocked
+
 # v0.5.112 (2026-10-24)
 
 ## Fixes
