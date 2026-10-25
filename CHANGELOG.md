@@ -1,3 +1,8 @@
+# v0.5.115-beta.1 (2026-10-25)
+
+## Fixes
+- **Z.ai GLM**: pin and install CloakBrowser with compatible Playwright and socks-proxy-agent peers, repairing runtime upgrades that previously failed with npm ERESOLVE
+
 # v0.5.115-beta.0 (2026-10-24)
 
 ## Fixes

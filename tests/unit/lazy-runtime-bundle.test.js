@@ -7,6 +7,8 @@ describe("lazy runtime production bundling", () => {
     expect(source).not.toContain("createRequire");
     expect(source).not.toContain(".resolve(pkg)");
     expect(source).toContain("node_modules");
-    expect(source).toContain('cloakbrowser: "^0.3.31"');
+    expect(source).toContain('cloakbrowser: "0.3.31"');
+    expect(source).toContain('"socks-proxy-agent": "10.1.0"');
+    expect(source).toContain('cloakbrowser: ["cloakbrowser", "playwright-core", "socks-proxy-agent"]');
   });
 });
