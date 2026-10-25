@@ -24,9 +24,19 @@
   const interactive = new URLSearchParams(location.search).get("mode") === "interactive";
   const status = document.getElementById("status");
 
+  async function post(path, body) {
+    if (typeof window.__zcodePost === "function") return window.__zcodePost(path, body || null);
+    const response = await fetch(`/api/zcode/captcha/${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (!response.ok) throw new Error(await response.text());
+  }
+
   async function requestInteractive() {
     if (interactive) return;
-    await fetch("/api/zcode/captcha/needs-interactive", { method: "POST" }).catch(() => {});
+    await post("needs-interactive").catch(() => {});
   }
 
   async function init() {
@@ -54,12 +64,7 @@
           else document.getElementById("trigger").click();
         },
         async success(verifyParam) {
-          const submit = await fetch("/api/zcode/captcha/submit", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ verifyParam }),
-          });
-          if (!submit.ok) throw new Error("Could not submit verification");
+          await post("submit", { verifyParam });
           status.textContent = "Verification complete. The request will continue automatically.";
         },
         async fail() { status.textContent = "Opening manual verification…"; await requestInteractive(); },

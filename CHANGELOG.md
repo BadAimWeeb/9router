@@ -1,3 +1,8 @@
+# v0.5.115-beta.0 (2026-10-24)
+
+## Fixes
+- **Z.ai GLM**: run Start Plan verification in a dedicated persistent CloakBrowser profile and bridge captcha completion directly into the server process
+
 # v0.5.114 (2026-10-24)
 
 ## Fixes

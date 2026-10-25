@@ -1,7 +1,5 @@
-import { acquireBrowserContext, openPage, releaseBrowserContext } from "../../../open-sse/services/browserPool.js";
+import { launchZcodeContext } from "./browser.js";
 import { ZCODE_CONFIG } from "./config.js";
-
-const CONTEXT_KEY = "zcode-captcha";
 
 export class CaptchaManager {
   constructor() {
@@ -33,15 +31,16 @@ export class CaptchaManager {
 
   async openPage(headless) {
     await this.page?.close().catch(() => {});
-    await releaseBrowserContext(CONTEXT_KEY).catch(() => {});
-    const pooled = await acquireBrowserContext(CONTEXT_KEY, { headless });
-    if (headless && !pooled.isStealth) {
-      throw new Error("ZCode captcha requires Obscura or optional cloakbrowser stealth runtime");
-    }
-    this.page = await openPage(pooled);
+    const context = await launchZcodeContext(headless);
+    this.page = context.pages()[0] || await context.newPage();
     this.page.on("console", (message) => console.log(`[ZCode Captcha] ${message.text()}`));
     this.page.on("pageerror", (error) => console.error("[ZCode Captcha] page error:", error.message));
     this.page.on("requestfailed", (request) => console.warn("[ZCode Captcha] request failed:", request.url(), request.failure()?.errorText));
+    await this.page.exposeFunction("__zcodePost", async (path, body) => {
+      if (path === "submit") return this.submit(body?.verifyParam);
+      if (path === "needs-interactive") return this.needsInteractive();
+      throw new Error("Unsupported ZCode captcha callback");
+    });
     await this.page.goto(
       `http://127.0.0.1:${ZCODE_CONFIG.captchaPort}/zcode/captcha.html${headless ? "" : "?mode=interactive"}`,
       { waitUntil: "domcontentloaded", timeout: 30000 },
