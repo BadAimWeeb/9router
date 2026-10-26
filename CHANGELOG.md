@@ -1,3 +1,13 @@
+# v0.5.115-beta.4 (2026-10-25)
+
+## Features
+- **Z.ai GLM**: support selectable ZCode plans and Start Plan verification
+- **Compatible Nodes**: support custom upstream headers
+
+## Fixes
+- **OpenCode Free**: restore translated-session eligibility with current timestamps and the CLI fingerprint (#5222)
+- **Models**: cache provider model-list responses for five minutes
+
 # v0.5.109 (2026-10-23)
 
 ## Features
