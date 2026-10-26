@@ -18,6 +18,34 @@ import { NOUS_MODELS_URL, normalizeNousModels } from "open-sse/services/nous.js"
 import codexProvider from "open-sse/providers/registry/codex.js";
 
 const GEMINI_CLI_MODELS_URL = "https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels";
+const MODEL_LIST_CACHE_TTL_MS = 5 * 60 * 1000;
+const modelListCache = globalThis._providerModelListCache ||= new Map();
+
+export function clearProviderModelListCache() {
+  modelListCache.clear();
+}
+
+async function cachedModelList(connection, load) {
+  const key = connection.id;
+  const version = connection.updatedAt || "";
+  const cached = modelListCache.get(key);
+  if (cached && cached.version === version && cached.expiresAt > Date.now()) {
+    const response = await cached.response;
+    if (!response.ok) modelListCache.delete(key);
+    return response.clone();
+  }
+
+  const response = Promise.resolve().then(load);
+  modelListCache.set(key, { version, expiresAt: Date.now() + MODEL_LIST_CACHE_TTL_MS, response });
+  try {
+    const resolved = await response;
+    if (!resolved.ok) modelListCache.delete(key);
+    return resolved.clone();
+  } catch (error) {
+    modelListCache.delete(key);
+    throw error;
+  }
+}
 
 // Model discovery must identify as the same Codex CLI version as inference.
 const CODEX_MODELS_URL = `https://chatgpt.com/backend-api/codex/models?client_version=${codexProvider.transport.cliVersion}`;
@@ -588,18 +616,7 @@ const PROVIDER_MODELS_CONFIG = {
   }
 };
 
-/**
- * GET /api/providers/[id]/models - Get models list from provider
- */
-export async function GET(request, { params }) {
-  try {
-    const { id } = await params;
-    const connection = await getProviderConnectionById(id);
-
-    if (!connection) {
-      return NextResponse.json({ error: "Connection not found" }, { status: 404 });
-    }
-
+async function fetchProviderModels(connection) {
     if (isOpenAICompatibleProvider(connection.provider)) {
       const baseUrl = connection.providerSpecificData?.baseUrl;
       if (!baseUrl) {
@@ -743,6 +760,21 @@ export async function GET(request, { params }) {
       connectionId: connection.id,
       models
     });
+}
+
+/**
+ * GET /api/providers/[id]/models - Get models list from provider
+ */
+export async function GET(request, { params }) {
+  try {
+    const { id } = await params;
+    const connection = await getProviderConnectionById(id);
+
+    if (!connection) {
+      return NextResponse.json({ error: "Connection not found" }, { status: 404 });
+    }
+
+    return cachedModelList(connection, () => fetchProviderModels(connection));
   } catch (error) {
     console.log("Error fetching provider models:", error);
     return NextResponse.json({ error: "Failed to fetch models" }, { status: 500 });
