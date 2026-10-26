@@ -95,6 +95,8 @@ const LOCAL_ONLY_PATHS = [
   "/api/headroom/proxy",
 ];
 
+const LOOPBACK_CALLBACK_PATHS = ["/api/zcode/captcha"];
+
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 
 // Accepts a Host header, a URL hostname or a raw socket address. Splitting on the first
@@ -212,6 +214,13 @@ export const __test__ = {
 
 export async function proxy(request) {
   const { pathname } = request.nextUrl;
+
+  // Browser automation callbacks carry no dashboard cookie. Accept only when
+  // custom-server proves the TCP peer and browser Origin are both loopback.
+  if (LOOPBACK_CALLBACK_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
+    if (isLocalRequest(request)) return NextResponse.next();
+    return NextResponse.json({ error: "Local only: loopback callback required" }, { status: 403 });
+  }
 
   // Local-only gate for spawn-capable / host-secret routes.
   if (LOCAL_ONLY_PATHS.some((p) => pathname.startsWith(p))) {
