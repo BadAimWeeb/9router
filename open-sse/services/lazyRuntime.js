@@ -11,14 +11,19 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 import { getWritableDataDir } from "../utils/writableDataDir.js";
 
 // Keep in sync with package.json devDependencies.
 const LAZY_DEP_VERSIONS = {
-  "playwright-core": "^1.62.1",
+  cloakbrowser: "0.3.31",
+  "playwright-core": "1.62.1",
+  "socks-proxy-agent": "10.1.0",
   "wreq-js": "^3.2.0",
+};
+
+const LAZY_DEP_INSTALL_SETS = {
+  cloakbrowser: ["cloakbrowser", "playwright-core", "socks-proxy-agent"],
 };
 
 function getRuntimeDir() {
@@ -30,11 +35,15 @@ function isModuleMissing(error) {
   return code === "MODULE_NOT_FOUND" || code === "ERR_MODULE_NOT_FOUND";
 }
 
-function npmInstall(pkg, version) {
+function runtimeModuleUrl(pkg) {
+  return pathToFileURL(path.join(getRuntimeDir(), "node_modules", pkg)).href;
+}
+
+function npmInstall(packages) {
   const cwd = getRuntimeDir();
   fs.mkdirSync(cwd, { recursive: true });
   const npm = process.platform === "win32" ? "npm.cmd" : "npm";
-  const args = ["install", "--no-audit", "--no-fund", "--prefer-online", `${pkg}@${version}`];
+  const args = ["install", "--no-audit", "--no-fund", "--prefer-online", ...packages];
   return new Promise((resolve) => {
     const child = spawn(npm, args, { cwd, stdio: ["ignore", "pipe", "pipe"], shell: process.platform === "win32" });
     let stderr = "";
@@ -54,24 +63,24 @@ async function load(pkg) {
     if (!isModuleMissing(error)) throw error;
   }
   // 2) Already present in the runtime dir from a previous install.
-  const runtimeRequire = createRequire(path.join(getRuntimeDir(), "package.json"));
   try {
-    return await import(pathToFileURL(runtimeRequire.resolve(pkg)).href);
+    return await import(/* webpackIgnore: true */ runtimeModuleUrl(pkg));
   } catch (error) {
     if (!isModuleMissing(error)) throw error;
   }
   // 3) Download on demand, then import from the runtime dir.
-  const version = LAZY_DEP_VERSIONS[pkg] || "latest";
+  const installPackages = (LAZY_DEP_INSTALL_SETS[pkg] || [pkg])
+    .map((name) => `${name}@${LAZY_DEP_VERSIONS[name] || "latest"}`);
   const dir = getRuntimeDir();
-  const res = await npmInstall(pkg, version);
+  const res = await npmInstall(installPackages);
   if (!res.ok) {
     const reason = (res.stderr.match(/npm ERR! ?(.+)/) || [])[1] || res.stderr.split("\n").filter(Boolean).pop() || "unknown npm error";
     throw new Error(
       `${pkg} is missing and the on-demand install failed (${String(reason).slice(0, 160)}) — ` +
-      `install it manually: cd "${dir}" && npm install ${pkg}@${version}`
+      `install it manually: cd "${dir}" && npm install ${installPackages.join(" ")}`
     );
   }
-  return import(pathToFileURL(createRequire(path.join(dir, "package.json")).resolve(pkg)).href);
+  return import(/* webpackIgnore: true */ runtimeModuleUrl(pkg));
 }
 
 export function loadRuntimeDep(pkg) {
