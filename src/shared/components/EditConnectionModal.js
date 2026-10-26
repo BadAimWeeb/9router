@@ -25,6 +25,7 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
   const [awsData, setAwsData] = useState({ profile: "", region: "", accessKeyId: "", sessionToken: "" });
   const [clearAwsSessionToken, setClearAwsSessionToken] = useState(false);
   const [region, setRegion] = useState("");
+  const [plan, setPlan] = useState("");
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null);
   const [validating, setValidating] = useState(false);
@@ -33,6 +34,7 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
 
   useEffect(() => {
     if (connection) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset the modal form for the selected connection
       setFormData({
         name: connection.name || "",
         priority: connection.priority || 1,
@@ -66,6 +68,9 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
         const savedRegion = connection.providerSpecificData?.region || providerCfg.defaultRegion || providerCfg.regions[0]?.id || "";
         setRegion(savedRegion);
       }
+      if (providerCfg?.plans) {
+        setPlan(connection.providerSpecificData?.plan || providerCfg.defaultPlan || providerCfg.plans[0]?.id || "");
+      }
       setTestResult(null);
       setValidationResult(null);
     }
@@ -79,6 +84,8 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
     ? (isOpenAICompatibleProvider(connection.provider) || isAnthropicCompatibleProvider(connection.provider))
     : false;
   const providerRegions = connection ? (AI_PROVIDERS?.[connection.provider]?.regions || null) : null;
+  const providerPlans = connection ? (AI_PROVIDERS?.[connection.provider]?.plans || null) : null;
+  const availablePlans = providerPlans?.filter((item) => !item.authModes || item.authModes.includes(connection.authType)) || null;
 
   // Build providerSpecificData for region-aware providers
   const buildRegionSpecificData = () => {
@@ -197,6 +204,9 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
       // Persist updated region for region-aware providers
       if (providerRegions && region) {
         updates.providerSpecificData = buildRegionSpecificData();
+      }
+      if (providerPlans && plan) {
+        updates.providerSpecificData = { ...(connection.providerSpecificData || {}), plan };
       }
       
       await onSave(updates);
@@ -344,6 +354,15 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
             value={region}
             onChange={(e) => setRegion(e.target.value)}
             options={providerRegions.map((r) => ({ value: r.id, label: r.label }))}
+          />
+        )}
+
+        {availablePlans && (
+          <Select
+            label="Plan"
+            value={plan}
+            onChange={(e) => setPlan(e.target.value)}
+            options={availablePlans.map((item) => ({ value: item.id, label: item.label }))}
           />
         )}
 
