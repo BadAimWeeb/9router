@@ -17,7 +17,7 @@ vi.mock("@/lib/network/connectionProxy", () => ({
 vi.mock("../../open-sse/utils/proxyFetch.js", () => ({
   proxyAwareFetch: mocks.fetch
 }));
-import { GET } from "../../src/app/api/providers/[id]/models/route.js";
+import { clearProviderModelListCache, GET } from "../../src/app/api/providers/[id]/models/route.js";
 const connection = {
   id: "fixture",
   provider: "cloudflare-ai",
@@ -34,6 +34,7 @@ const run = () => GET(new Request("https://router.fixture/api/providers/fixture/
 });
 beforeEach(() => {
   vi.clearAllMocks();
+  clearProviderModelListCache();
   mocks.connection.mockResolvedValue(connection);
 });
 describe("Cloudflare model discovery", () => {
@@ -97,6 +98,45 @@ describe("Cloudflare model discovery", () => {
     expect(body.models.map(m => m.id)).toEqual(["@cf/vendor/first", "@cf/vendor/second"]);
     expect(mocks.fetch).toHaveBeenCalledTimes(2);
     expect(mocks.fetch.mock.calls[1][0]).toContain("page=2");
+  });
+  it("caches the model list per connection", async () => {
+    mocks.fetch.mockResolvedValue(Response.json({
+      result: [{ name: "@cf/meta/llama-3.3-70b-instruct" }]
+    }));
+
+    expect((await (await run()).json()).models).toHaveLength(1);
+    expect((await (await run()).json()).models).toHaveLength(1);
+    expect(mocks.fetch).toHaveBeenCalledTimes(1);
+  });
+  it("coalesces concurrent model-list requests", async () => {
+    let resolve;
+    mocks.fetch.mockReturnValue(new Promise(done => { resolve = done; }));
+
+    const first = run();
+    const second = run();
+    await vi.waitFor(() => expect(mocks.fetch).toHaveBeenCalledTimes(1));
+    resolve(Response.json({ result: [{ name: "@cf/meta/llama-3.3-70b-instruct" }] }));
+
+    expect((await (await first).json()).models).toHaveLength(1);
+    expect((await (await second).json()).models).toHaveLength(1);
+  });
+  it("caches the generic provider model-list path", async () => {
+    mocks.connection.mockResolvedValue({
+      ...connection,
+      provider: "deepseek",
+      providerSpecificData: {},
+    });
+    const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({
+      data: [{ id: "deepseek-chat" }]
+    }));
+
+    try {
+      expect((await (await run()).json()).models).toHaveLength(1);
+      expect((await (await run()).json()).models).toHaveLength(1);
+      expect(fetch).toHaveBeenCalledTimes(1);
+    } finally {
+      fetch.mockRestore();
+    }
   });
   it("falls back when an HTTP 200 carries API errors", async () => {
     mocks.fetch.mockResolvedValue(Response.json({
