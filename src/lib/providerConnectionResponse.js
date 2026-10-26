@@ -8,14 +8,12 @@ export function toProviderConnectionResponse(connection) {
   const { apiKey, accessToken, refreshToken, idToken, ...safe } = connection;
 
   if (!connection.providerSpecificData) {
+  // Credentials that live inside providerSpecificData must never reach the client.
+  const { sessionToken, opendesignControlKey, zcodeJwtToken, zaiBusinessToken, zaiRefreshToken, individualCodingPlanApiKey, teamCodingPlanApiKey, _captchaVerifyParam, ...providerSpecificData } = connection.providerSpecificData;
+  if (!usesAwsCredentialForm(connection.provider) && opendesignControlKey === undefined && zcodeJwtToken === undefined && zaiBusinessToken === undefined && zaiRefreshToken === undefined && individualCodingPlanApiKey === undefined && teamCodingPlanApiKey === undefined && _captchaVerifyParam === undefined) {
     return safe;
   }
 
-  // Credentials that live inside providerSpecificData must never reach the client.
-  const { sessionToken, opendesignControlKey, ...providerSpecificData } = connection.providerSpecificData;
-  if (!usesAwsCredentialForm(connection.provider) && opendesignControlKey === undefined) {
-    return safe;
-  }
 
   return { ...safe, providerSpecificData };
 }
