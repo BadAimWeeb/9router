@@ -74,20 +74,11 @@ const CONTEXT_TTL_MS = 10 * 60 * 1000; // 10 min — evict stale contexts
 const EVICT_INTERVAL_MS = 60 * 1000; // check every 60s
 const DISK_CACHE_BYTES = 50 * 1024 * 1024; // 50 MB per browser process
 
-function getCloakbrowserModuleId() {
-  // Keep this computed: cloakbrowser is an optional runtime enhancer, and a literal
-  // dynamic import with the package name makes bundlers resolve it during compilation.
-  return ["cloak", "browser"].join("");
-}
-
 async function resolveCloakLaunch() {
   if (state.cloakLaunchResolved) return state.cloakLaunch;
   state.cloakLaunchResolved = true;
   try {
-    const mod = await import(
-      /* webpackIgnore: true */
-      getCloakbrowserModuleId()
-    );
+    const mod = await loadRuntimeDep("cloakbrowser");
     state.cloakLaunch = mod.launch ?? null;
   } catch {
     state.cloakLaunch = null;

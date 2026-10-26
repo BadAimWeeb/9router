@@ -50,7 +50,13 @@ const USAGE_HANDLERS = {
   iflow: (c) => getIflowUsage(c.accessToken),
   ollama: (c) => getOllamaUsage(c.apiKey, c.providerSpecificData, c.proxyOptions),
   // OAuth connections store the coding-plan key on accessToken (no apiKey)
-  glm: (c) => getGlmUsage(c.apiKey || c.accessToken, c.provider, c.proxyOptions),
+  glm: (c) => getGlmUsage(
+    c.providerSpecificData?.plan === "team-coding-plan"
+      ? c.providerSpecificData?.teamCodingPlanApiKey || c.apiKey || c.accessToken
+      : c.providerSpecificData?.individualCodingPlanApiKey || c.apiKey || c.accessToken,
+    c.provider,
+    c.proxyOptions,
+  ),
   "glm-cn": (c) => getGlmUsage(c.apiKey || c.accessToken, c.provider, c.proxyOptions),
   minimax: (c) => getMiniMaxUsage(c.apiKey, c.provider, c.proxyOptions),
   "minimax-cn": (c) => getMiniMaxUsage(c.apiKey, c.provider, c.proxyOptions),
