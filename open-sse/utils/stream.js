@@ -75,11 +75,7 @@ export function createSSEStream(options = {}) {
 
   const state = mode === STREAM_MODE.TRANSLATE
     ? { ...initState(sourceFormat), provider, toolNameMap, customToolNames: new Set(customToolNames || []), model, sessionId: credentials?._clientSessionId || null,
-        // Which upstream format this stream came from. A response translator can be
-        // reached either directly (target === its registered source) or as the second
-        // hop of a pivot, and on the terminal null chunk the pivot drops it — so a
-        // translator that defers closing events until flush needs to know which case
-        // it is in. Absent/undefined means "unknown", i.e. do not defer.
+        // Only direct Chat streams defer completion to wait for a usage trailer.
         targetFormat }
     : null;
 
