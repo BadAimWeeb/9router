@@ -1,3 +1,12 @@
+# v0.5.115-beta.8 (2026-10-27)
+
+## Features
+- **Combos**: add the `sticky-fallback` strategy — after the original first model fails and traffic moves to a later member, keep starting there to keep its upstream prompt cache warm; repeated failures on the parked member (`comboStickyRoundRobinLimit`) rotate back to the original first model, and unused positions expire after 2h / on combo or settings change
+
+## Fixes
+- **OpenAI translator**: default missing `function.parameters` to an empty object schema so strict upstreams no longer 400 with "missing field \`parameters\`" (#5222)
+- **Responses streaming**: assign sequential output indices across reasoning, messages, and tool calls, and preserve terminal flushing through Gemini/Antigravity translation so Codex Desktop no longer rejects duplicate indices or misses `response.completed` when upstream omits a finish marker
+
 # v0.5.111 (2026-10-26)
 
 ## Features
