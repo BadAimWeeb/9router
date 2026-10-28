@@ -74,6 +74,7 @@ export default function ProviderDetailPage() {
   const [bulkUpdatingProxy, setBulkUpdatingProxy] = useState(false);
   const [providerStrategy, setProviderStrategy] = useState(null);
   const [providerStickyLimit, setProviderStickyLimit] = useState("");
+  const [strategyError, setStrategyError] = useState("");
   const [thinkingMode, setThinkingMode] = useState("auto");
   const [autoPing, setAutoPing] = useState({ enabled: false, connections: {}, schedules: {} });
   const [scheduleConnection, setScheduleConnection] = useState(null);
@@ -383,8 +384,10 @@ export default function ProviderDetailPage() {
 
   const saveProviderStrategy = async (strategy, stickyLimit) => {
     try {
+      setStrategyError("");
       const settingsRes = await fetch("/api/settings", { cache: "no-store" });
-      const settingsData = settingsRes.ok ? await settingsRes.json() : {};
+      if (!settingsRes.ok) throw new Error("Could not load provider strategies");
+      const settingsData = await settingsRes.json();
       const current = settingsData.providerStrategies || {};
 
       // Build override: null strategy means remove override, use global
@@ -401,12 +404,15 @@ export default function ProviderDetailPage() {
         updated[providerId] = override;
       }
 
-      await fetch("/api/settings", {
+      const res = await fetch("/api/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ providerStrategies: updated }),
       });
+      if (!res.ok) throw new Error("Could not save provider strategy");
+      setProviderStrategy(strategy);
     } catch (error) {
+      setStrategyError(error.message);
       console.log("Error saving provider strategy:", error);
     }
   };
@@ -882,12 +888,17 @@ export default function ProviderDetailPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
       });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Could not save connection");
+      }
       if (res.ok) {
         await fetchConnections();
         setShowEditModal(false);
       }
     } catch (error) {
       console.log("Error updating connection:", error);
+      throw error;
     }
   };
 
@@ -1576,11 +1587,24 @@ export default function ProviderDetailPage() {
               )}
               {/* Round Robin toggle */}
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs text-text-muted font-medium">Round Robin</span>
-                <Toggle
-                  checked={providerStrategy === "round-robin"}
-                  onChange={handleRoundRobinToggle}
-                />
+                {providerId === "codex" ? (
+                  <Select
+                    aria-label="Codex account balancing"
+                    value={providerStrategy || "global"}
+                    onChange={e => saveProviderStrategy(e.target.value === "global" ? null : e.target.value, providerStickyLimit)}
+                    options={[
+                      { value: "global", label: "Use global strategy" },
+                      { value: "fill-first", label: "Fill first" },
+                      { value: "round-robin", label: "Round robin" },
+                      { value: "quota-weighted", label: "Quota-weighted" },
+                    ]}
+                  />
+                ) : (
+                  <>
+                    <span className="text-xs text-text-muted font-medium">Round Robin</span>
+                    <Toggle checked={providerStrategy === "round-robin"} onChange={handleRoundRobinToggle} />
+                  </>
+                )}
                 {providerStrategy === "round-robin" && (
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs text-text-muted">Sticky:</span>
@@ -1597,6 +1621,11 @@ export default function ProviderDetailPage() {
               </div>
             </div>
           </div>
+
+          {strategyError && <p role="alert" className="mb-3 text-sm text-red-500">{strategyError}</p>}
+          {providerId === "codex" && providerStrategy === "quota-weighted" && (
+            <p className="mb-4 text-xs text-text-muted">Edit each connection to configure 5h and weekly usage ceilings or usage-to-priority rules. Routing uses the worse window; unknown quota is used only when no measured account is available.</p>
+          )}
 
           {connections.length === 0 ? (
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
