@@ -227,6 +227,10 @@ export function translateResponse(targetFormat, sourceFormat, chunk, state) {
   if (sourceFormat !== FORMATS.OPENAI) {
     const fromOpenAI = responseRegistry.get(`${FORMATS.OPENAI}:${sourceFormat}`);
     if (fromOpenAI) {
+      // Gemini/Claude may emit nothing at EOF; Responses still needs its terminal flush.
+      if (chunk === null && results.length === 0 && sourceFormat === FORMATS.OPENAI_RESPONSES) {
+        results = [null];
+      }
       const finalResults = [];
       for (const r of results) {
         const converted = fromOpenAI(r, state);
@@ -282,6 +286,9 @@ export function initState(sourceFormat) {
       responseId: `resp_${Date.now()}`,
       created: Math.floor(Date.now() / 1000),
       started: false,
+      nextOutputIndex: 0,
+      msgOutputIndex: {},
+      funcOutputIndex: {},
       msgTextBuf: {},
       msgItemAdded: {},
       msgContentAdded: {},
