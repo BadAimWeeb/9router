@@ -1,3 +1,18 @@
+# v0.5.115-beta.11 (2026-10-29)
+
+## Changes
+- Rebase onto upstream v0.5.112 (`1fe586bb`), retaining all 17 unmerged patches from local and contributing authors; replace the previous local release commit.
+- Preserve Cloudflare quotas and model discovery, OpenCode Go Gemini transport, CommandCode session continuity and cache usage, quota and Open WebUI routes, GLM ZCode plans, compatible-provider custom headers, and model-list caching.
+- Preserve sticky combo fallback, Codex quota-weighted balancing, OpenAI tool-parameter defaults, Responses output ordering and terminal flushing, upstream stream timeouts, and Claude non-streaming compatibility.
+
+## Fixes
+- Combine upstream CommandCode CLI headers and captured sessions with validated conversation-stable fallback IDs.
+- Retain upstream runtime-safe dependency loading and partial-install recovery alongside GLM browser dependency sets.
+- Preserve tool fields named `items` when enforcing Gemini schema type constraints, while retaining empty-enum sanitization.
+
+## Notes
+- Authentication, SSRF protections, and strict-proxy policy remain in place. Codex quota ceilings are best-effort; expired readings fail open on quota API outages.
+
 # v0.5.112 (2026-10-28)
 
 ## Features
