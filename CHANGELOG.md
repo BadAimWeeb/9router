@@ -1,3 +1,12 @@
+# v0.5.115-beta.15 (2026-11-02)
+
+## Features
+- Expose reasoning effort options in the models API.
+
+## Fixes
+- Update Antigravity's default search model to Gemini 3.8 Flash and resolve its upstream model alias.
+- Preserve reported cache token usage across response conversions and streaming diagnostics.
+
 # v0.5.115-beta.9 (2026-10-28)
 
 ## Features
