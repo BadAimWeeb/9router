@@ -38,6 +38,11 @@
 - **Nace Drex**: add the `nace` provider to the System One lane with `drex`, `drex-v2.0` and `drex-max`
 - **CommandCode**: align request headers with the official CLI 1.88.0 through a shared `commandCodeHeaders` service
 - **Codex**: add `gpt-6.1-terra` (responses-lite lane, GPT-6-Lite thinking levels)
+- **Codex**: add opt-in quota-weighted account balancing with custom 5h and weekly usage ceilings or usage-to-priority rules; the worse window determines traffic weight alongside account priority, with separate Spark quotas, cached account-bound usage reads, and reset-aware fallback
+- **Combos**: add the `sticky-fallback` strategy — after the original first model fails and traffic moves to a later member, keep starting there to keep its upstream prompt cache warm; repeated failures on the parked member (`comboStickyRoundRobinLimit`) rotate back to the original first model, and unused positions expire after 2h / on combo or settings change
+
+## Notes
+- **Quota balancing**: preserves strict-proxy policy; cached readings and in-flight requests make ceilings best-effort, and quota API outages fail open after stale readings expire
 
 ## Fixes
 - **NVIDIA NIM**: normalize assistant `reasoning` aliases to `reasoning_content` before forwarding, avoiding NIM's duplicate-field 400 when clients send both.
@@ -48,6 +53,8 @@
 - **Providers**: keep full `LLM|id|secret` (Muse) key strings opaque in bulk-add instead of splitting on the first pipe into name/key, auto-naming them LLM 1, LLM 2, …
 - **DeepSeek**: replace the vendored PoW hash implementation with a noble-hashes keccak port (DeepSeekHashV1, SHA3-256 with round 0 skipped), shrinking `deepseek-pow-hash.js` by ~430 lines
 - **GitHub Copilot**: apply Claude 5.5 thinking rules to Copilot's dotted model ids (`claude-opus-5.5*`, `claude-sonnet-5.5`) and make `claude-haiku-5.5` adaptive-only on its Anthropic-native shim, whose budget-shaped thinking comes back 400
+- **OpenAI translator**: default missing `function.parameters` to an empty object schema so strict upstreams no longer 400 with "missing field \`parameters\`" (#5222)
+- **Responses streaming**: assign sequential output indices across reasoning, messages, and tool calls, and preserve terminal flushing through Gemini/Antigravity translation so Codex Desktop no longer rejects duplicate indices or misses `response.completed` when upstream omits a finish marker
 
 # v0.5.111 (2026-10-26)
 
@@ -85,8 +92,6 @@
 - **STT**: add Codex OAuth transcription provider (`cx/transcribe`), reusing existing Codex OAuth chat connections with 24 kHz PCM16 WAV conversion and bounded private temp files (#5074)
 
 ## Fixes
-- **CodeBuddy**: send the plugin's request/conversation id headers (`X-Request-ID`, `X-Conversation-ID`, `X-Conversation-Request-ID`, `X-Conversation-Message-ID`) on CN and intl chat requests — without them the gateway's channel check rejects every call with `400 / 11128 "request illegal"`
-- **CodeBuddy**: align the `#5024` backoff tests with the current request-scoped contract — `checkFallbackError` reports `requestScoped: true` for unclassified 4xx, and a combo now advances past a malformed CodeBuddy body instead of stopping on the first member
 - **Combos**: advance past request-scoped 4xx rejections (validation, unsupported parameter, context overflow) instead of terminating combo (#5057)
 - **Combos**: fall through to next member when streaming response returns HTTP 200 but produces zero content frames (#ca7b540)
 - **Combos**: try next model when provider returns HTTP 400 for insufficient credits or balance too low (#4713)
