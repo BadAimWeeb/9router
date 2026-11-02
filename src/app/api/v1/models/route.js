@@ -198,6 +198,16 @@ function modelKind(model) {
   return MODEL_TYPE_TO_KIND[k] || LLM_KIND;
 }
 
+function reasoningMetadata(provider, model) {
+  const levels = getThinkingLevels(provider, model);
+  if (!levels) return {};
+  // ponytail: these are gateway-supported levels; add live per-model metadata when available.
+  return {
+    supported_reasoning_efforts: levels,
+    supported_reasoning_levels: levels.map((effort) => ({ effort, description: effort })),
+  };
+}
+
 // For dynamic/unknown model IDs (compatible providers, alias map, custom models)
 // fall back to provider-level kind matching when per-model type is unavailable.
 function inferKindFromUnknownModelId(modelId) {
@@ -432,6 +442,7 @@ export async function buildModelsList(kindFilter, options = {}) {
           object: "model",
           owned_by: alias,
           capabilities: getCapabilitiesForModel(alias, model.id),
+          ...(modelKind(model) === LLM_KIND ? reasoningMetadata(providerId, model.id) : {}),
         });
       }
     }
@@ -604,6 +615,7 @@ export async function buildModelsList(kindFilter, options = {}) {
         // Emitted at top level because not every client recurses into nested
         // objects; the camelCase `capabilities` block stays for compatibility.
         if (kind === LLM_KIND || allowAsLlm) {
+          Object.assign(model, reasoningMetadata(providerId, modelId));
           let contextWindow = caps?.contextWindow;
           let maxOutput = caps?.maxOutput;
           // Live-catalog and service-kind capabilities are usually partial
