@@ -104,6 +104,8 @@ function chatCompletionToResponses(responseBody, customToolNames = null) {
       input_tokens: usage.prompt_tokens || usage.input_tokens || 0,
       output_tokens: usage.completion_tokens || usage.output_tokens || 0,
       total_tokens: usage.total_tokens || (usage.prompt_tokens || 0) + (usage.completion_tokens || 0),
+      ...(usage.prompt_tokens_details && { input_tokens_details: { ...usage.prompt_tokens_details } }),
+      ...(usage.completion_tokens_details && { output_tokens_details: { ...usage.completion_tokens_details } }),
     },
   };
 }

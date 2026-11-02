@@ -1,6 +1,7 @@
 import { FORMATS } from "../../translator/formats.js";
 import { needsTranslation } from "../../translator/index.js";
 import { openAICompletionToClaudeMessage } from "../../translator/concerns/claudeMessage.js";
+import { toOpenAIUsage } from "../../translator/concerns/usage.js";
 import { ollamaBodyToOpenAI } from "../../translator/response/ollama-to-openai.js";
 import { addBufferToUsage, filterUsageForFormat } from "../../utils/usageTracking.js";
 import { createErrorResult } from "../../utils/error.js";
@@ -87,6 +88,8 @@ function openAICompletionToResponses(responseBody, customToolNames = null) {
       input_tokens: usage.prompt_tokens || usage.input_tokens || 0,
       output_tokens: usage.completion_tokens || usage.output_tokens || 0,
       total_tokens: usage.total_tokens || (usage.prompt_tokens || 0) + (usage.completion_tokens || 0),
+      ...(usage.prompt_tokens_details && { input_tokens_details: { ...usage.prompt_tokens_details } }),
+      ...(usage.completion_tokens_details && { output_tokens_details: { ...usage.completion_tokens_details } }),
     },
   };
 }
@@ -155,16 +158,9 @@ export function translateNonStreamingResponse(responseBody, targetFormat, source
     };
 
     if (usage) {
-      result.usage = {
-        prompt_tokens: (usage.promptTokenCount || 0) + (usage.thoughtsTokenCount || 0),
-        completion_tokens: usage.candidatesTokenCount || 0,
-        total_tokens: usage.totalTokenCount || 0
-      };
-      if (usage.thoughtsTokenCount > 0) {
-        result.usage.completion_tokens_details = { reasoning_tokens: usage.thoughtsTokenCount };
-      }
+      result.usage = toOpenAIUsage(usage, "gemini");
     }
-    return sourceFormat === FORMATS.CLAUDE ? openAICompletionToClaudeMessage(result) : result;
+    return sourceFormat === FORMATS.CLAUDE ? openAICompletionToClaudeMessage(result) : sourceFormat === FORMATS.OPENAI_RESPONSES ? openAICompletionToResponses(result, customToolNames) : result;
   }
 
   // Claude
@@ -214,13 +210,9 @@ export function translateNonStreamingResponse(responseBody, targetFormat, source
     };
 
     if (responseBody.usage) {
-      result.usage = {
-        prompt_tokens: responseBody.usage.input_tokens || 0,
-        completion_tokens: responseBody.usage.output_tokens || 0,
-        total_tokens: (responseBody.usage.input_tokens || 0) + (responseBody.usage.output_tokens || 0)
-      };
+      result.usage = toOpenAIUsage(responseBody.usage, "claude");
     }
-    return result;
+    return sourceFormat === FORMATS.OPENAI_RESPONSES ? openAICompletionToResponses(result, customToolNames) : result;
   }
 
   // Ollama
