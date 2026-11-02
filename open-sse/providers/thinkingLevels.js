@@ -4,6 +4,7 @@ import { getCapabilitiesForModel } from "./capabilities.js";
 import { matchPattern } from "./pricing.js";
 import { resolveKiroEffortPath } from "../config/kiroConstants.js";
 import { getProviderModels } from "../config/providerModels.js";
+import { supportsGrokCliReasoningEffort } from "../config/grokCli.js";
 
 // Shared level sets (deduped) — verified against provider docs + wire in thinkingUnified.applyFormat.
 const L = {
@@ -109,6 +110,7 @@ const isOpenAICompatibleNode = (provider) => String(provider || "").startsWith("
 // Returns valid thinking levels for a model, or null when the model has no reasoning.
 export function getThinkingLevels(provider, model) {
   if (provider === "kiro" && resolveKiroEffortPath(model) === null) return null;
+  if (provider === "grok-cli") return supportsGrokCliReasoningEffort(String(model || "").replace(/\([^()]+\)\s*$/, "")) ? ["low", "medium", "high", "xhigh"] : null;
   const caps = getCapabilitiesForModel(provider, model);
   if (!caps.reasoning) return null;
   const baseId = String(model || "").replace(/\([^()]+\)\s*$/, "");
