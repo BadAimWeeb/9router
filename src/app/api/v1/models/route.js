@@ -21,6 +21,7 @@ import { resolveZedModels } from "open-sse/shared/zedAuth.js";
 import { updateProviderCredentials } from "@/sse/services/tokenRefresh";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { capabilitiesFromServiceKind, getCapabilitiesForModel, aggregateComboCapabilities } from "open-sse/providers/capabilities.js";
+import { getThinkingLevels } from "open-sse/providers/thinkingLevels.js";
 
 // Qoder shares one live resolver across intl (qoder) and CN (qoder-cn); the
 // credentials carry the provider id so qoderModels picks the right region's
@@ -187,6 +188,16 @@ function modelKind(model) {
   const k = model?.kind || model?.type;
   if (!k) return LLM_KIND;
   return MODEL_TYPE_TO_KIND[k] || LLM_KIND;
+}
+
+function reasoningMetadata(provider, model) {
+  const levels = getThinkingLevels(provider, model);
+  if (!levels) return {};
+  // ponytail: these are gateway-supported levels; add live per-model metadata when available.
+  return {
+    supported_reasoning_efforts: levels,
+    supported_reasoning_levels: levels.map((effort) => ({ effort, description: effort })),
+  };
 }
 
 // For dynamic/unknown model IDs (compatible providers, alias map, custom models)
@@ -423,6 +434,7 @@ export async function buildModelsList(kindFilter, options = {}) {
           object: "model",
           owned_by: alias,
           capabilities: getCapabilitiesForModel(alias, model.id),
+          ...(modelKind(model) === LLM_KIND ? reasoningMetadata(providerId, model.id) : {}),
         });
       }
     }
@@ -595,6 +607,7 @@ export async function buildModelsList(kindFilter, options = {}) {
         // Emitted at top level because not every client recurses into nested
         // objects; the camelCase `capabilities` block stays for compatibility.
         if (kind === LLM_KIND || allowAsLlm) {
+          Object.assign(model, reasoningMetadata(providerId, modelId));
           let contextWindow = caps?.contextWindow;
           let maxOutput = caps?.maxOutput;
           // Live-catalog and service-kind capabilities are usually partial
