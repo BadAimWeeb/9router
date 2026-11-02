@@ -1,3 +1,8 @@
+# v0.5.115-beta.12 (2026-11-02)
+
+## Fixes
+- Preserve reported cache token usage across response conversions and streaming diagnostics.
+
 # v0.5.115-beta.9 (2026-10-28)
 
 ## Features
