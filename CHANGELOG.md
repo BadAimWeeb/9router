@@ -1,3 +1,13 @@
+# v0.5.115-beta.16 (2026-11-04)
+
+## Features
+- Expose reasoning effort options in the models API.
+
+## Fixes
+- Use client-compatible `-1m` suffixes for Codex extended-context models.
+- Update Antigravity's default search model to Gemini 3.8 Flash and resolve its upstream model alias.
+- Preserve reported cache token usage across response conversions and streaming diagnostics.
+
 # v0.5.115-beta.9 (2026-10-28)
 
 ## Features
