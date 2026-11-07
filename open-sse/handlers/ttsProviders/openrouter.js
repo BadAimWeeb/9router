@@ -42,6 +42,19 @@ export default {
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
+      // ponytail: retry only the explicit endpoint mismatch; add model transport metadata if OpenRouter documents it.
+      if (typeof err?.error?.message === "string" && err.error.message.includes("/api/v1/audio/speech")) {
+        const speech = await fetch(TTS_CFG.speechUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${credentials.apiKey}`, ...(TTS_CFG.headers || {}) },
+          body: JSON.stringify({ model: ttsModel, input: text, voice, response_format: "mp3" }),
+        });
+        if (!speech.ok) {
+          const failure = await speech.json().catch(() => ({}));
+          throw new Error(failure?.error?.message || `OpenRouter TTS failed: ${speech.status}`);
+        }
+        return { base64: Buffer.from(await speech.arrayBuffer()).toString("base64"), format: "mp3" };
+      }
       throw new Error(err?.error?.message || `OpenRouter TTS failed: ${res.status}`);
     }
 
