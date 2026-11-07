@@ -67,6 +67,7 @@ export function TtsExampleCard({ providerId }) {
   const [countryVoices, setCountryVoices]     = useState([]);
   const [selectedLang, setSelectedLang]       = useState("");
   const [selectedModel, setSelectedModel]     = useState(() => {
+    if (config.defaultModel) return config.defaultModel;
     const cfgModels = AI_PROVIDERS[providerId]?.ttsConfig?.models;
     if (cfgModels?.length) return cfgModels[0].id;
     if (config.hasModelSelector && config.modelKey) {
@@ -132,6 +133,7 @@ export function TtsExampleCard({ providerId }) {
 
     // Re-initialize model and voice state when providerId changes
     const initialModel = (() => {
+      if (config.defaultModel) return config.defaultModel;
       const cfgModels = AI_PROVIDERS[providerId]?.ttsConfig?.models;
       if (cfgModels?.length) return cfgModels[0].id;
       if (config.hasModelSelector && config.modelKey) {
