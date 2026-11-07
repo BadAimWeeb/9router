@@ -104,7 +104,7 @@ export async function handleStt(request) {
     try {
       const isCodex = provider === "codex";
       if (isCodex) credentials = await checkAndRefreshToken(provider, credentials);
-      const proxyOptions = isCodex
+      const proxyOptions = (isCodex || provider === "openrouter")
         ? await resolveConnectionProxyConfig(credentials._connection?.providerSpecificData || credentials.providerSpecificData)
         : undefined;
       const args = { provider, model, formData, credentials, sttConfig: AI_PROVIDERS[provider]?.sttConfig, transport: modelTransport, signal: request.signal, proxyOptions };
@@ -124,7 +124,7 @@ export async function handleStt(request) {
 
     if (request.signal.aborted) return errorResponse(504, "Transcription cancelled");
     // Bad audio / unsupported parameters are client errors, not broken accounts.
-    if (provider === "codex" && [400, 413, 504].includes(result.status)) {
+    if ((provider === "codex" || provider === "openrouter") && [400, 413, 504].includes(result.status)) {
       return result.response || errorResponse(result.status, result.error);
     }
 
