@@ -22,6 +22,7 @@ export const TTS_PROVIDER_CONFIG = {
     hasLanguageDropdown: false,
     hasModelSelector: true,
     hasBrowseButton: false,
+    hasVoiceIdInput: true,
     voiceSource: "hardcoded",
     modelKey: "openrouter-tts-models",
     voiceKey: "openrouter-tts-voices",
