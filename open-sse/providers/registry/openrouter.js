@@ -59,6 +59,7 @@ export default {
   },
   ttsConfig: {
     baseUrl: "https://openrouter.ai/api/v1/chat/completions",
+    speechUrl: "https://openrouter.ai/api/v1/audio/speech",
     defaultModel: "openai/gpt-4o-mini-tts",
     headers: {"HTTP-Referer":"https://endpoint-proxy.local","X-Title":"Endpoint Proxy"},
   },
