@@ -61,6 +61,7 @@ export function TtsExampleCard({ providerId }) {
   // Voice state
   const [selectedVoice, setSelectedVoice]     = useState(config.defaultVoiceId || "");
   const [selectedVoiceName, setSelectedVoiceName] = useState("");
+  const [customModels, setCustomModels] = useState([]);
   const [voiceId, setVoiceId]               = useState(config.defaultVoiceId || ""); // editable voice id (elevenlabs/config providers)
   // Voices shown below Voice row after language selected
   const [countryVoices, setCountryVoices]     = useState([]);
@@ -102,6 +103,17 @@ export function TtsExampleCard({ providerId }) {
   const [languageHint, setLanguageHint]     = useState("");
   // Number of stored provider connections (shown when no dashboard API key)
   const [connectionCount, setConnectionCount] = useState(0);
+
+  useEffect(() => {
+    if (providerId !== "openrouter") return;
+    const load = () => fetch("/api/models/custom", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => setCustomModels((d.models || []).filter((m) => m.providerAlias === providerAlias && getModelKind(m) === "tts")))
+      .catch(() => {});
+    load();
+    window.addEventListener("customModelChanged", load);
+    return () => window.removeEventListener("customModelChanged", load);
+  }, [providerId, providerAlias]);
 
   useEffect(() => {
     setLocalEndpoint(window.location.origin);
@@ -253,6 +265,7 @@ export function TtsExampleCard({ providerId }) {
       const voice = activeVoiceId.trim();
       return `${providerAlias}/${model}${voice && voice !== "default" ? `/${voice}` : ""}`;
     }
+    if (providerId === "openrouter" && selectedModel) return `${providerAlias}/${selectedModel}`;
     if (config.hasModelSelector && selectedModel && activeVoiceId) return `${providerAlias}/${selectedModel}/${activeVoiceId}`;
     if (config.hasModelSelector && selectedModel) return `${providerAlias}/${selectedModel}`;
     if (activeVoiceId) return `${providerAlias}/${activeVoiceId}`;
@@ -261,6 +274,7 @@ export function TtsExampleCard({ providerId }) {
 
   const ttsBody = (() => {
     const b = { model: modelFull, input };
+    if (providerId === "openrouter") b.voice = activeVoiceId || "alloy";
     if (config.hasLanguageHint && languageHint) b.language = languageHint;
     if (config.hasStyleInput && style.trim()) b.style = style.trim();
     if (responseFormat && responseFormat !== "json" && responseFormat !== "mp3") {
@@ -384,7 +398,7 @@ export function TtsExampleCard({ providerId }) {
               >
                 {(() => {
                   const ttsModels = getModelsByProviderId(providerId).filter(m => getModelKind(m) === "tts");
-                  return (ttsModels.length ? ttsModels : getModelsByProviderId(config.modelKey) || []).map((m) => (
+                  return [...(ttsModels.length ? ttsModels : getModelsByProviderId(config.modelKey) || []), ...customModels.filter((m) => !ttsModels.some((builtIn) => builtIn.id === m.id))].map((m) => (
                     <option key={m.id} value={m.id}>{m.name || m.id}</option>
                   ));
                 })()}
