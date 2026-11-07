@@ -3,6 +3,15 @@
  * Centralized config for TTS provider UI behavior
  */
 export const TTS_PROVIDER_CONFIG = {
+  "codex": {
+    hasModelSelector: true,
+    defaultModel: "speech",
+    defaultFormat: "wav",
+    formatOptions: [
+      { value: "wav", label: "WAV (Binary)" },
+      { value: "json", label: "JSON (Base64)" },
+    ],
+  },
   "google-tts": {
     hasLanguageDropdown: false,
     hasModelSelector: false,
