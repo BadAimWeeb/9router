@@ -4,6 +4,7 @@ import { transcribeGeminiLive } from "./geminiLiveStt.js";
 import { transcribeCodex } from "./codexStt.js";
 import { PROVIDER_MODELS, PROVIDER_ID_TO_ALIAS } from "../config/providerModels.js";
 import { HTTP_STATUS } from "../config/runtimeConfig.js";
+import { proxyAwareFetch } from "../utils/proxyFetch.js";
 
 // Next.js polyfills globalThis.FormData with a Web API implementation that lacks
 // internal undici symbols. When passed to fetch(), undici cannot serialize it as
@@ -302,7 +303,7 @@ export async function handleSttCore({ provider, model, formData, credentials, st
   // sets it, so cloud providers are untouched. Mirrors the custom embedding
   // providers, which already resolve baseUrl the same way.
   const overrideUrl = credentials?.providerSpecificData?.baseUrl;
-  if (overrideUrl) cfg = { ...cfg, baseUrl: String(overrideUrl).replace(/\/+$/, "") };
+  if (overrideUrl && provider !== "openrouter") cfg = { ...cfg, baseUrl: String(overrideUrl).replace(/\/+$/, "") };
 
   const token = cfg.authType === "none" ? null : (credentials?.apiKey || credentials?.accessToken);
   if (cfg.authType !== "none" && !token) {
@@ -311,10 +312,31 @@ export async function handleSttCore({ provider, model, formData, credentials, st
 
   // Format-switch extension: an explicit caller marker wins over the registry
   // marker; with neither, the provider-default sttConfig.format applies.
-  const marker = (typeof transport === "string" && transport.trim()) ? transport.trim() : resolveModelTransport(provider, model);
+  const marker = provider === "openrouter" ? null : (typeof transport === "string" && transport.trim()) ? transport.trim() : resolveModelTransport(provider, model);
 
   try {
     switch (marker || cfg.format) {
+      case "openrouter-audio": {
+        const fmt = String(formData.get("response_format") || "json").toLowerCase();
+        if (!["json", "text"].includes(fmt)) return createErrorResult(400, "OpenRouter STT supports only json and text response formats");
+        if (typeof file.arrayBuffer !== "function") return createErrorResult(400, "Invalid audio file");
+        const mime = resolveAudioContentType(file).split(";")[0];
+        const format = ({ "audio/mpeg": "mp3", "audio/mp4": "m4a", "audio/x-wav": "wav", "audio/wave": "wav" })[mime] || (mime.startsWith("audio/") ? mime.slice(6) : "");
+        if (!/^[a-z0-9]+$/.test(format)) return createErrorResult(400, "Unsupported audio format");
+        const language = formData.get("language");
+        const prompt = formData.get("prompt");
+        const instruction = `Transcribe the audio verbatim. Return only the transcript.${typeof language === "string" && language.trim() ? ` Language: ${language.trim()}.` : ""}${typeof prompt === "string" && prompt.trim() ? ` Context: ${prompt.trim()}` : ""}`;
+        const res = await proxyAwareFetch(cfg.baseUrl, {
+          method: "POST", signal,
+          headers: { ...buildAuthHeaders(cfg, token), "Content-Type": "application/json" },
+          body: JSON.stringify({ model, messages: [{ role: "user", content: [{ type: "text", text: instruction }, { type: "input_audio", input_audio: { data: Buffer.from(await file.arrayBuffer()).toString("base64"), format } }] }] }),
+        }, proxyOptions);
+        if (!res.ok) return upstreamError(res);
+        const data = await res.json();
+        const text = data?.choices?.[0]?.message?.content;
+        if (typeof text !== "string") return createErrorResult(502, "OpenRouter returned no transcript");
+        return fmt === "text" ? textResponse(text) : jsonResponse({ text });
+      }
       case "gemini-live": {
         const live = await transcribeGeminiLive({ cfg, file, model, token, formData, mimeType: resolveAudioContentType(file) });
         // response_format parity with the OpenAI-compatible transport: default

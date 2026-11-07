@@ -4,22 +4,22 @@ import { PROVIDER_MEDIA } from "../../providers/index.js";
 const TTS_CFG = PROVIDER_MEDIA["openrouter"]?.ttsConfig || {};
 
 export default {
-  async synthesize(text, model, credentials) {
+  async synthesize(text, model, credentials, responseFormat, options = {}) {
     if (!credentials?.apiKey) throw new Error("No OpenRouter API key configured");
 
     // model format: "tts-model/voice" e.g. "openai/gpt-4o-mini-tts/alloy"
     let ttsModel = TTS_CFG.defaultModel;
-    let voice = "alloy";
-    if (model && model.includes("/")) {
+    let voice = options.voice || "alloy";
+    if (model && options.voice) {
+      ttsModel = model;
+    } else if (model && model.includes("/")) {
       const lastSlash = model.lastIndexOf("/");
       const maybVoice = model.slice(lastSlash + 1);
       const maybeModel = model.slice(0, lastSlash);
       if (maybeModel.includes("/")) {
         ttsModel = maybeModel;
         voice = maybVoice;
-      } else {
-        voice = model;
-      }
+      } else ttsModel = model;
     } else if (model) {
       voice = model;
     }

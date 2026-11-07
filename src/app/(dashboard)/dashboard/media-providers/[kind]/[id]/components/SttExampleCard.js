@@ -16,8 +16,8 @@ export function SttExampleCard({ providerId }) {
 
   const [selectedModel, setSelectedModel] = useState(builtinSttModels[0]?.id ?? "");
   const selectedModelObj = sttModels.find((m) => m.id === selectedModel);
-  const allowedParams = Array.isArray(selectedModelObj?.params) ? selectedModelObj.params : [];
-  const responseFormats = selectedModelObj?.responseFormats || ["json", "text", "srt", "verbose_json", "vtt"];
+  const allowedParams = Array.isArray(selectedModelObj?.params) ? selectedModelObj.params : providerId === "openrouter" ? ["language", "prompt", "response_format"] : [];
+  const responseFormats = selectedModelObj?.responseFormats || (providerId === "openrouter" ? ["json", "text"] : ["json", "text", "srt", "verbose_json", "vtt"]);
 
   const [audioFile, setAudioFile] = useState(null);
   const [language, setLanguage] = useState("");
@@ -55,6 +55,7 @@ export function SttExampleCard({ providerId }) {
         .then((d) => {
           const list = (d.models || []).filter((m) => getModelKind(m) === "stt" && m.providerAlias === providerAlias);
           setCustomSttModels(list);
+          setSelectedModel((current) => current || list[0]?.id || "");
         })
         .catch(() => {});
     };
