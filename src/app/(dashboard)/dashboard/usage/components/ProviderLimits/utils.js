@@ -725,6 +725,7 @@ export function parseQuotaData(provider, data) {
         }
         break;
 
+      case "openrouter":
       case "cloudflare-ai":
         for (const [name, quota] of Object.entries(data.quotas || {})) {
           normalizedQuotas.push({ ...quota, name: quota.name || name });
