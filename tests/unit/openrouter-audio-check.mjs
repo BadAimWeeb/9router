@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 
 let request;
+let dedicatedSpeech = false;
 globalThis.fetch = async (url, options) => {
   request = { url, ...options, body: JSON.parse(options.body) };
+  if (dedicatedSpeech && url.endsWith("/chat/completions")) return Response.json({ error: { message: "Use the /api/v1/audio/speech endpoint instead." } }, { status: 400 });
+  if (url.endsWith("/audio/speech")) return new Response("audio");
   if (request.body.stream) return new Response('data: {"choices":[{"delta":{"audio":{"data":"aGk="}}}]}\n\ndata: [DONE]\n\n');
   return Response.json({ choices: [{ message: { content: "Hello" } }] });
 };
@@ -26,3 +29,9 @@ result = await handleTtsCore({ provider: "openrouter", model: "vendor/custom-mod
 assert.equal(result.success, true);
 assert.equal(request.body.model, "vendor/custom-model");
 assert.equal(request.body.audio.voice, "custom-voice");
+dedicatedSpeech = true;
+result = await handleTtsCore({ provider: "openrouter", model: "heygen/heygen-voice-1-turbo:free", voice: "voice-id", input: "Hello", credentials: { apiKey: "secret" }, responseFormat: "json" });
+assert.equal(result.success, true);
+assert.equal(request.url, "https://openrouter.ai/api/v1/audio/speech");
+assert.deepEqual(request.body, { model: "heygen/heygen-voice-1-turbo:free", input: "Hello", voice: "voice-id", response_format: "mp3" });
+assert.deepEqual(await result.response.json(), { audio: "YXVkaW8=", format: "mp3" });
