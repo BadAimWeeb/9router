@@ -1,3 +1,15 @@
+# v0.5.115-beta.18 (2026-11-07)
+
+## Features
+- Support custom OpenRouter text-to-speech and speech-to-text models.
+- Display OpenRouter effective budget and free-model daily request limits.
+- Expose reasoning effort options in the models API.
+
+## Fixes
+- Use client-compatible `-1m` suffixes for Codex extended-context models.
+- Update Antigravity's default search model to Gemini 3.8 Flash and resolve its upstream model alias.
+- Preserve reported cache token usage across response conversions and streaming diagnostics.
+
 # v0.5.115-beta.9 (2026-10-28)
 
 ## Features
