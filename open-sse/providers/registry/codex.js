@@ -22,6 +22,7 @@ export default {
     deprecationNotice: "RISK_NOTICE",
     kindNotice: {
       stt: "Uses the same Codex OAuth connection as chat, not an OpenAI API key. Requires ffmpeg; maximum 25 MiB and 120 seconds. Returns json or text only; language, prompt and timestamps are unsupported. This internal ChatGPT endpoint may change without notice.",
+      tts: "Experimental conversational speech may paraphrase text. Requires ffmpeg; WAV or JSON only, up to 500 bytes including prompt. Account proxies are unsupported. This internal ChatGPT endpoint may change without notice.",
       image: "Requires a ChatGPT Plus (or higher) account. Free accounts are not supported for image generation.",
     },
   },
@@ -87,16 +88,19 @@ export default {
     { id: "gpt-image-1.5", name: "GPT Image 1.5", capabilities: ["text2img","edit","multiImage"], params: ["size","quality","background","image_detail","output_format"], kind: "image" },
     { id: "gpt-6-sol-image", name: "GPT 6.0 Sol Image", capabilities: ["text2img","edit"], params: ["size","quality","background","image_detail","output_format"], kind: "image" },
     { id: "transcribe", name: "Codex Transcription", kind: "stt", params: ["response_format"], responseFormats: ["json", "text"] },
+    { id: "speech", name: "Codex Speech (experimental)", kind: "tts" },
     // gpt-5.5-image / gpt-5.4-image / gpt-5.3-image removed alongside base models.
     // gpt-5.6-{sol,terra,luna}-image removed: superseded by gpt-6-sol-image.
   ],
-  serviceKinds: ["llm","image","stt"],
+  serviceKinds: ["llm","image","stt","tts"],
   imageConfig: { baseUrl: "https://chatgpt.com/backend-api/codex/images/generations" },
+  ttsConfig: { authType: "oauth" },
   sttConfig: {
     baseUrl: "https://chatgpt.com/backend-api/transcribe",
     authType: "oauth",
     format: "codex-transcribe",
   },
+  realtimeCallUrl: "https://chatgpt.com/backend-api/codex/realtime/calls?intent=quicksilver&architecture=avas",
   oauth: {
     clientId: "app_EMoamEEZ73f0CkXaXp7hrann",
     authorizeUrl: "https://auth.openai.com/oauth/authorize",
