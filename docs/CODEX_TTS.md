@@ -1,0 +1,5 @@
+# Experimental Codex speech
+
+Use `cx/speech` with a Codex OAuth connection and `/v1/audio/speech`. Set `response_format` to `wav` or `json`; supported voices are arbor, breeze, cove, ember, juniper, maple, sol, spruce and vale (default cove). `ffmpeg` must be installed. The encoded input plus the instruction prefix is limited to 500 UTF-8 bytes; language and style are not supported.
+
+This uses an experimental ChatGPT realtime conversation, not a deterministic TTS API. It can paraphrase, omit or add words; do not use it for safety-critical or verbatim output. Audio is collected with a bounded quiet-tail heuristic and may be truncated. Realtime media travels directly over WebRTC; configured account proxies are rejected rather than bypassed. Availability, protocol and subscription usage may change.
