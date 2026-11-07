@@ -1,6 +1,6 @@
 import {
   extractApiKey, isValidApiKey,
-  getProviderCredentials, markAccountUnavailable,
+  getProviderCredentials, markAccountUnavailable, clearAccountError,
 } from "../services/auth.js";
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo, getComboModels } from "../services/model.js";
@@ -11,6 +11,8 @@ import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import { AI_PROVIDERS } from "@/shared/constants/providers";
 import { handleComboChat } from "open-sse/services/combo.js";
 import * as log from "../utils/logger.js";
+import { checkAndRefreshToken } from "../services/tokenRefresh.js";
+import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy.js";
 
 // Derived from providers.js: any TTS provider not noAuth requires stored credentials
 const CREDENTIALED_PROVIDERS = new Set(
@@ -59,7 +61,7 @@ export async function handleTts(request) {
     return handleComboChat({
       body,
       models: comboModels,
-      handleSingleModel: (b, m) => handleSingleModelTts(b, m, responseFormat, language, style),
+      handleSingleModel: (b, m) => handleSingleModelTts(b, m, responseFormat, language, style, request.signal),
       log,
       comboName: modelStr,
       comboStrategy,
@@ -67,10 +69,10 @@ export async function handleTts(request) {
     });
   }
 
-  return handleSingleModelTts(body, modelStr, responseFormat, language, style);
+  return handleSingleModelTts(body, modelStr, responseFormat, language, style, request.signal);
 }
 
-async function handleSingleModelTts(body, modelStr, responseFormat, language, style) {
+async function handleSingleModelTts(body, modelStr, responseFormat, language, style, signal) {
   const modelInfo = await getModelInfo(modelStr);
   if (!modelInfo.provider) return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid model format");
 
@@ -90,7 +92,7 @@ async function handleSingleModelTts(body, modelStr, responseFormat, language, st
   let lastStatus = null;
 
   while (true) {
-    const credentials = await getProviderCredentials(provider, excludeConnectionIds, model);
+    let credentials = await getProviderCredentials(provider, excludeConnectionIds, model);
 
     if (!credentials || credentials.allRateLimited) {
       if (credentials?.allRateLimited) {
@@ -111,9 +113,25 @@ async function handleSingleModelTts(body, modelStr, responseFormat, language, st
 
     log.info("AUTH", `\x1b[32mUsing ${provider} account: ${credentials.connectionName}\x1b[0m`);
 
-    const result = await handleTtsCore({ provider, model, input: body.input, credentials, responseFormat, language, style, voice: body.voice });
+    let result;
+    try {
+      if (provider === "codex") credentials = await checkAndRefreshToken(provider, credentials);
+      const proxyOptions = provider === "codex" ? await resolveConnectionProxyConfig(credentials._connection?.providerSpecificData || credentials.providerSpecificData) : undefined;
+      const args = { provider, model, input: body.input, credentials, responseFormat, language, style, voice: body.voice, signal, proxyOptions };
+      result = await handleTtsCore(args);
+      if (provider === "codex" && result.status === 401 && credentials.refreshToken && !signal.aborted) {
+        const previous = credentials.accessToken;
+        credentials = await checkAndRefreshToken(provider, credentials, { force: true });
+        if (credentials.accessToken !== previous) result = await handleTtsCore({ ...args, credentials });
+      }
+      if (result.success && provider === "codex") await clearAccountError(credentials.connectionId, credentials, model);
+    } catch {
+      return errorResponse(HTTP_STATUS.BAD_GATEWAY, "TTS credential or transport failure");
+    }
 
     if (result.success) return result.response;
+
+    if (provider === "codex" && ([400, 503, 504].includes(result.status) || signal.aborted)) return result.response || errorResponse(result.status, result.error);
 
     const { shouldFallback } = await markAccountUnavailable(credentials.connectionId, result.status, result.error, provider, model);
     if (shouldFallback) {
