@@ -4,13 +4,15 @@ import { createCodexTtsPeer, orderCodexAudioPackets, waitForCodexTtsTurn, sendCo
 import { RTCPeerConnection, MediaStreamTrack, RtpHeader, RtpPacket } from "werift";
 import { decodeCodexAudio, trimCodexWav } from "../../open-sse/handlers/codexTtsAudio.js";
 import { TTS_PROVIDER_CONFIG } from "../../src/shared/constants/ttsProviders.js";
+import { getTtsVoicesForModel } from "../../open-sse/config/ttsModels.js";
 import { synthesizeCodexTts } from "../../open-sse/handlers/codexTts.js";
 import { handleTtsCore } from "../../open-sse/handlers/ttsCore.js";
 
 const credentials = { authType: "oauth", accessToken: "token", providerSpecificData: { accountId: "account" } };
 assert.equal(TTS_PROVIDER_CONFIG.codex.defaultModel, "speech");
 assert.equal(TTS_PROVIDER_CONFIG.codex.defaultFormat, "wav");
-assert.ok(!TTS_PROVIDER_CONFIG.codex.voiceSource && !TTS_PROVIDER_CONFIG.codex.hasBrowseButton && !TTS_PROVIDER_CONFIG.codex.hasVoiceIdInput);
+assert.equal(TTS_PROVIDER_CONFIG.codex.voiceSource, "hardcoded");
+assert.deepEqual(getTtsVoicesForModel("codex", "speech").map((voice) => voice.id), ["cove", "arbor", "breeze", "ember", "juniper", "maple", "sol", "spruce", "vale"]);
 for (const args of [{ model: "bad", responseFormat: "wav" }, { model: "speech", responseFormat: "mp3" }, { model: "speech", responseFormat: "wav", voice: "bad" }, { model: "speech", responseFormat: "wav", input: "x".repeat(501) }]) {
 	const result = await handleTtsCore({ provider: "codex", input: "hello", ...args });
 	assert.equal(result.status, 400);
