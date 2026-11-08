@@ -267,7 +267,7 @@ export function TtsExampleCard({ providerId }) {
       const voice = activeVoiceId.trim();
       return `${providerAlias}/${model}${voice && voice !== "default" ? `/${voice}` : ""}`;
     }
-    if (providerId === "openrouter" && selectedModel) return `${providerAlias}/${selectedModel}`;
+    if ((providerId === "openrouter" || providerId === "codex") && selectedModel) return `${providerAlias}/${selectedModel}`;
     if (config.hasModelSelector && selectedModel && activeVoiceId) return `${providerAlias}/${selectedModel}/${activeVoiceId}`;
     if (config.hasModelSelector && selectedModel) return `${providerAlias}/${selectedModel}`;
     if (activeVoiceId) return `${providerAlias}/${activeVoiceId}`;
@@ -277,6 +277,7 @@ export function TtsExampleCard({ providerId }) {
   const ttsBody = (() => {
     const b = { model: modelFull, input };
     if (providerId === "openrouter") b.voice = activeVoiceId || "alloy";
+    if (providerId === "codex" && activeVoiceId) b.voice = activeVoiceId;
     if (config.hasLanguageHint && languageHint) b.language = languageHint;
     if (config.hasStyleInput && style.trim()) b.style = style.trim();
     if (responseFormat && responseFormat !== "json" && responseFormat !== "mp3") {
