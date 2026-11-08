@@ -6,6 +6,8 @@ export const TTS_PROVIDER_CONFIG = {
   "codex": {
     hasModelSelector: true,
     defaultModel: "speech",
+    voiceSource: "hardcoded",
+    voicesPerModel: true,
     defaultFormat: "wav",
     formatOptions: [
       { value: "wav", label: "WAV (Binary)" },
