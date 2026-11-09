@@ -56,13 +56,15 @@ export async function handleTtsCore({ provider, model, input, credentials, respo
   try {
     if (provider === "codex") {
       if (model !== "speech") return createErrorResult(400, "Use model cx/speech for Codex TTS");
-      if (!["wav", "json"].includes(responseFormat)) return createErrorResult(400, "Codex TTS supports wav or json only");
+      if (!["wav", "mp3", "json"].includes(responseFormat)) return createErrorResult(400, "Codex TTS supports wav, mp3 or json only");
       if (language || style) return createErrorResult(400, "Codex TTS does not support language or style");
       if (Buffer.byteLength(`Vocalize only the following quoted data: ${JSON.stringify(input)}`) > 500) return createErrorResult(400, "Codex TTS input exceeds the 500-byte context limit");
       if (voice != null && !["arbor", "breeze", "cove", "ember", "juniper", "maple", "sol", "spruce", "vale"].includes(voice)) return createErrorResult(400, "Unsupported Codex voice");
       const { synthesizeCodexTts } = await import("./codexTts.js");
       const audio = await synthesizeCodexTts({ input, voice, credentials, signal, proxyOptions });
-      return createTtsResponse(audio.toString("base64"), "wav", responseFormat);
+      const format = responseFormat === "wav" ? "wav" : "mp3";
+      const output = format === "wav" ? audio : await (await import("./codexTtsAudio.js")).codexWavToMp3(audio, signal);
+      return createTtsResponse(output.toString("base64"), format, responseFormat);
     }
     // Special-case adapters (google-tts, edge-tts, local-device, elevenlabs, openai, openrouter, gemini, xiaomi-mimo)
     const adapter = getTtsAdapter(provider);
