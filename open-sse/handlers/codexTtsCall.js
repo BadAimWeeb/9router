@@ -4,7 +4,7 @@ import { proxyAwareFetch } from "../utils/proxyFetch.js";
 import { readBounded } from "./codexSttAudio.js";
 
 // ponytail: signaling only; add media, event handling and cleanup before routing requests here.
-export async function createCodexTtsCall({ sdp, voice = "cove", credentials, signal: clientSignal, proxyOptions }) {
+export async function createCodexTtsCall({ sdp, voice = "cove", credentials, signal: clientSignal, proxyOptions, realtime = false }) {
   const signal = AbortSignal.any([...(clientSignal ? [clientSignal] : []), AbortSignal.timeout(60000)]);
   const account = credentials?.providerSpecificData || {};
   const accountId = account.workspaceId || account.chatgptAccountId || account.accountId;
@@ -19,7 +19,7 @@ export async function createCodexTtsCall({ sdp, voice = "cove", credentials, sig
   signal.throwIfAborted();
   const body = JSON.stringify({ sdp, session: {
     model: "gpt-live-1-codex",
-    instructions: "Vocalize only the text supplied by the user. Do not add, remove, or change words.",
+    ...(realtime ? {} : { instructions: "Vocalize only the text supplied by the user. Do not add, remove, or change words." }),
     audio: { output: { voice } }, delegation: { type: "client", ack_filler: false },
   } });
   const response = await proxyAwareFetch(codex.realtimeCallUrl, {
