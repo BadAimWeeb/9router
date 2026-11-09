@@ -1,3 +1,20 @@
+# v0.5.117-beta.1 (2026-11-08)
+
+## Features
+- Support Codex speech MP3 output and base64 MP3 JSON responses.
+- Display OpenRouter account credits and applicable budgets alongside the daily request limit.
+- Add experimental Codex text-to-speech using subscription realtime audio.
+- Support custom OpenRouter text-to-speech and speech-to-text models.
+- Display OpenRouter effective budget and free-model daily request limits.
+- Expose reasoning effort options in the models API.
+
+## Fixes
+- Default the Codex speech tester to the correct model and show supported voices.
+- Support OpenRouter models requiring the dedicated speech endpoint.
+- Use client-compatible `-1m` suffixes for Codex extended-context models.
+- Update Antigravity's default search model to Gemini 3.8 Flash and resolve its upstream model alias.
+- Preserve reported cache token usage across response conversions and streaming diagnostics.
+
 # v0.5.116 (2026-11-08)
 
 ## Features
