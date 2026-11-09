@@ -8,8 +8,9 @@ export const TTS_PROVIDER_CONFIG = {
     defaultModel: "speech",
     voiceSource: "hardcoded",
     voicesPerModel: true,
-    defaultFormat: "wav",
+    defaultFormat: "mp3",
     formatOptions: [
+      { value: "mp3", label: "MP3 (Binary)" },
       { value: "wav", label: "WAV (Binary)" },
       { value: "json", label: "JSON (Base64)" },
     ],

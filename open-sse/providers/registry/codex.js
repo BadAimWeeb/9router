@@ -22,7 +22,7 @@ export default {
     deprecationNotice: "RISK_NOTICE",
     kindNotice: {
       stt: "Uses the same Codex OAuth connection as chat, not an OpenAI API key. Requires ffmpeg; maximum 25 MiB and 120 seconds. Returns json or text only; language, prompt and timestamps are unsupported. This internal ChatGPT endpoint may change without notice.",
-      tts: "Experimental conversational speech may paraphrase text. Requires ffmpeg; WAV or JSON only, up to 500 bytes including prompt. Account proxies are unsupported. This internal ChatGPT endpoint may change without notice.",
+      tts: "Experimental conversational speech may paraphrase text. Requires ffmpeg; MP3, WAV or JSON, up to 500 bytes including prompt. Account proxies are unsupported. This internal ChatGPT endpoint may change without notice.",
       image: "Requires a ChatGPT Plus (or higher) account. Free accounts are not supported for image generation.",
     },
   },
