@@ -245,6 +245,8 @@ function buildCliPackage() {
   const customServerSrc = path.join(appDir, "custom-server.js");
   if (fs.existsSync(customServerSrc)) {
     fs.copyFileSync(customServerSrc, path.join(cliAppDir, "custom-server.js"));
+    fs.copyFileSync(path.join(appDir, "codex-websocket.js"), path.join(cliAppDir, "codex-websocket.js"));
+    copyRecursive(path.join(appDir, "node_modules", "ws"), path.join(cliAppDir, "node_modules", "ws"));
     console.log("✅ Copied custom-server.js\n");
   } else {
     console.error("❌ custom-server.js not found — without it no request can be proven local,");

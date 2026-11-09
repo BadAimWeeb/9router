@@ -80,6 +80,11 @@ http.createServer = (...args) => {
   // JBR 25 sends h2c upgrades that the HTTP/1.1 server would otherwise close.
   server.emit = function (event, ...eventArgs) {
     const [req, socket, head] = eventArgs;
+    if (event === "upgrade" && String(req.headers.upgrade || "").toLowerCase() === "websocket") {
+      try {
+        if (require("./codex-websocket.js")(server, req, socket, head)) return true;
+      } catch { socket.destroy(); return true; }
+    }
     if (event !== "upgrade" || String(req.headers.upgrade || "").toLowerCase() !== "h2c") {
       return origEmit.call(this, event, ...eventArgs);
     }
