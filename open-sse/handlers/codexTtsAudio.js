@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 
-function page(packet, sequence, granule, flags) {
+export function page(packet, sequence, granule, flags) {
   const segments = Math.floor(packet.length / 255) + 1;
   if (segments > 255) throw new Error("Opus packet too large");
   const header = Buffer.alloc(27 + segments);
@@ -17,7 +17,7 @@ function page(packet, sequence, granule, flags) {
   return output;
 }
 
-function opusSamples(payload) {
+export function opusSamples(payload) {
   const config = payload[0] >> 3;
   const frameSamples = config < 12 ? [480, 960, 1920, 2880][config & 3]
     : config < 16 ? [480, 960][config & 1] : [120, 240, 480, 960][config & 3];
