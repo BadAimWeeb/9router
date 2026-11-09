@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createCodexTtsCall } from "../../open-sse/handlers/codexTtsCall.js";
 import { createCodexTtsPeer, orderCodexAudioPackets, waitForCodexTtsTurn, sendCodexTtsText } from "../../open-sse/handlers/codexTtsPeer.js";
 import { RTCPeerConnection, MediaStreamTrack, RtpHeader, RtpPacket } from "werift";
-import { decodeCodexAudio, trimCodexWav } from "../../open-sse/handlers/codexTtsAudio.js";
+import { codexWavToMp3, decodeCodexAudio, trimCodexWav } from "../../open-sse/handlers/codexTtsAudio.js";
 import { TTS_PROVIDER_CONFIG } from "../../src/shared/constants/ttsProviders.js";
 import { getTtsVoicesForModel } from "../../open-sse/config/ttsModels.js";
 import { synthesizeCodexTts } from "../../open-sse/handlers/codexTts.js";
@@ -10,10 +10,10 @@ import { handleTtsCore } from "../../open-sse/handlers/ttsCore.js";
 
 const credentials = { authType: "oauth", accessToken: "token", providerSpecificData: { accountId: "account" } };
 assert.equal(TTS_PROVIDER_CONFIG.codex.defaultModel, "speech");
-assert.equal(TTS_PROVIDER_CONFIG.codex.defaultFormat, "wav");
+assert.equal(TTS_PROVIDER_CONFIG.codex.defaultFormat, "mp3");
 assert.equal(TTS_PROVIDER_CONFIG.codex.voiceSource, "hardcoded");
 assert.deepEqual(getTtsVoicesForModel("codex", "speech").map((voice) => voice.id), ["cove", "arbor", "breeze", "ember", "juniper", "maple", "sol", "spruce", "vale"]);
-for (const args of [{ model: "bad", responseFormat: "wav" }, { model: "speech", responseFormat: "mp3" }, { model: "speech", responseFormat: "wav", voice: "bad" }, { model: "speech", responseFormat: "wav", input: "x".repeat(501) }]) {
+for (const args of [{ model: "bad", responseFormat: "wav" }, { model: "speech", responseFormat: "flac" }, { model: "speech", responseFormat: "wav", voice: "bad" }, { model: "speech", responseFormat: "wav", input: "x".repeat(501) }]) {
 	const result = await handleTtsCore({ provider: "codex", input: "hello", ...args });
 	assert.equal(result.status, 400);
 }
@@ -46,6 +46,8 @@ assert.deepEqual(orderCodexAudioPackets([packet(65535), packet(1), packet(0), pa
 assert.deepEqual(orderCodexAudioPackets([packet(2), packet(1), packet(3)]).map((p) => p.sequenceNumber), [1, 2, 3]);
 assert.throws(() => orderCodexAudioPackets([packet(4), packet(6)]), /packet loss/);
 const wav = await decodeCodexAudio(Array.from({ length: 10 }, (_, i) => ({ timestamp: i * 960, payload: Buffer.from([0xf8, 0xff, 0xfe]) })));
+const mp3 = await codexWavToMp3(wav);
+assert.ok(mp3.length > 0 && (mp3.subarray(0, 3).toString() === "ID3" || (mp3[0] === 0xff && (mp3[1] & 0xe0) === 0xe0)));
 assert.equal(wav.toString("ascii", 0, 4), "RIFF");
 assert.equal(wav.readUInt32LE(4), wav.length - 8);
 assert.ok(wav.length > 44);
