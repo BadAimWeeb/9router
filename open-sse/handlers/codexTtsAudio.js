@@ -38,6 +38,19 @@ export function trimCodexWav(wav, start) {
   return trimmed;
 }
 
+export function codexWavToMp3(wav, signal) {
+  return new Promise((resolve, reject) => {
+    const child = spawn("ffmpeg", ["-nostdin", "-hide_banner", "-loglevel", "error", "-f", "wav", "-i", "pipe:0", "-f", "mp3", "pipe:1"],
+      { stdio: ["pipe", "pipe", "ignore"], signal, timeout: 15000, killSignal: "SIGKILL" });
+    const chunks = []; let size = 0; let overflow = false;
+    child.stdin.on("error", () => {});
+    child.stdout.on("data", (chunk) => { size += chunk.length; if (size > 6 * 1024 * 1024) { overflow = true; child.kill("SIGKILL"); } else chunks.push(chunk); });
+    child.on("error", () => reject(new Error("Codex MP3 encoder unavailable or cancelled")));
+    child.on("close", (code) => code === 0 && size && !overflow ? resolve(Buffer.concat(chunks, size)) : reject(new Error("Codex MP3 encoding failed")));
+    child.stdin.end(wav);
+  });
+}
+
 // ponytail: finite contiguous Opus only; add packet-loss concealment for streaming.
 export async function decodeCodexAudio(packets, signal) {
   if (!Array.isArray(packets) || !packets.length || packets.length > 12000) throw new Error("Missing Codex audio");
