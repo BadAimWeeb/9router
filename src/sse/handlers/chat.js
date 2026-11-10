@@ -20,6 +20,7 @@ import { handleComboChat, handleFusionChat, detectRequiredCapabilities } from "o
 import { augmentModelsWithCapacityAdapter, withCapacityAdapterStripping, getActiveAdapterStrategy } from "open-sse/services/capacityAdapter.js";
 import { handleBypassRequest } from "open-sse/utils/bypassHandler.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
+import { getModelType, PROVIDER_ID_TO_ALIAS } from "open-sse/config/providerModels.js";
 import { detectFormatByEndpoint } from "open-sse/translator/formats.js";
 import { resolveSessionIdentity } from "open-sse/utils/sessionManager.js";
 import * as log from "../utils/logger.js";
@@ -264,6 +265,10 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
   }
 
   const { provider, model } = modelInfo;
+
+  if (getModelType(PROVIDER_ID_TO_ALIAS[provider] || provider, model) === "realtime") {
+    return errorResponse(HTTP_STATUS.BAD_REQUEST, `Model ${provider}/${model} requires the /v1/realtime endpoint`);
+  }
 
   // Routing shown in the unified "▶" line (client model → provider/model)
 
