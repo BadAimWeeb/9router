@@ -14,8 +14,8 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
   const [activeProviders, setActiveProviders] = useState([]);
   const [modelAliases, setModelAliases] = useState({});
 
-  const openPicker = async () => {
-    setPickerOpen(true);
+  const openPicker = async (kind = "llm") => {
+    setPickerOpen(kind);
     // Same sources the combo editor feeds the picker with.
     try {
       const [providersRes, aliasRes] = await Promise.all([fetch("/api/providers"), fetch("/api/models/alias")]);
@@ -60,11 +60,18 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
             </span>
           ))}
           <button
-            onClick={openPicker}
+            onClick={() => openPicker()}
             className="flex items-center gap-0.5 rounded-xl border border-dashed border-black/10 px-2 py-0.5 text-xs font-medium text-primary hover:border-primary/50 dark:border-white/10"
           >
             <span className="material-symbols-outlined leading-none" style={{ fontSize: "14px" }}>add</span>
             Add combo or model
+          </button>
+          <button
+            onClick={() => openPicker("realtime")}
+            className="flex items-center gap-0.5 rounded-xl border border-dashed border-black/10 px-2 py-0.5 text-xs font-medium text-primary hover:border-primary/50 dark:border-white/10"
+          >
+            <span className="material-symbols-outlined leading-none" style={{ fontSize: "14px" }}>add</span>
+            Add realtime model
           </button>
         </div>
       )}
@@ -77,6 +84,7 @@ export default function KeyAccessControls({ apiKey, onChange, onRequestRestrict 
           activeProviders={activeProviders}
           modelAliases={modelAliases}
           title={`Allowed for "${apiKey.name}"`}
+          kindFilter={pickerOpen === "realtime" ? "realtime" : null}
           addedModelValues={access.allow}
           closeOnSelect={false}
         />
