@@ -24,6 +24,7 @@ export default {
       stt: "Uses the same Codex OAuth connection as chat, not an OpenAI API key. Requires ffmpeg; maximum 25 MiB and 120 seconds. Returns json or text only; language, prompt and timestamps are unsupported. This internal ChatGPT endpoint may change without notice.",
       tts: "Experimental conversational speech may paraphrase text. Requires ffmpeg; MP3, WAV or JSON, up to 500 bytes including prompt. Account proxies are unsupported. This internal ChatGPT endpoint may change without notice.",
       image: "Requires a ChatGPT Plus (or higher) account. Free accounts are not supported for image generation.",
+      realtime: "Uses your Codex OAuth connection via /v1/codex-voice, not the OpenAI /v1/realtime WebSocket. This internal ChatGPT endpoint may change without notice.",
     },
   },
   category: "oauth",
@@ -89,10 +90,11 @@ export default {
     { id: "gpt-6-sol-image", name: "GPT 6.0 Sol Image", capabilities: ["text2img","edit"], params: ["size","quality","background","image_detail","output_format"], kind: "image" },
     { id: "transcribe", name: "Codex Transcription", kind: "stt", params: ["response_format"], responseFormats: ["json", "text"] },
     { id: "speech", name: "Codex Speech (experimental)", kind: "tts" },
+    { id: "gpt-live-1-codex", name: "Codex Realtime", kind: "realtime" },
     // gpt-5.5-image / gpt-5.4-image / gpt-5.3-image removed alongside base models.
     // gpt-5.6-{sol,terra,luna}-image removed: superseded by gpt-6-sol-image.
   ],
-  serviceKinds: ["llm","image","stt","tts"],
+  serviceKinds: ["llm","image","stt","tts","realtime"],
   imageConfig: { baseUrl: "https://chatgpt.com/backend-api/codex/images/generations" },
   ttsConfig: { authType: "oauth" },
   sttConfig: {
