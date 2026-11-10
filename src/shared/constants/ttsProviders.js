@@ -80,7 +80,6 @@ export const TTS_PROVIDER_CONFIG = {
     defaultFormat: "wav",
     formatOptions: [
       { value: "wav", label: "WAV (Binary)" },
-      { value: "pcm", label: "PCM (Raw)" },
     ],
   },
   // ── Config-driven providers (load models from providers.js → ttsConfig.models) ──

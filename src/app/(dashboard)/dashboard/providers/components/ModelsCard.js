@@ -8,9 +8,10 @@ import { Card, Button, Modal } from "@/shared/components";
 import { getModelsByProviderId, getModelKind } from "@/shared/constants/models";
 import { getProviderAlias } from "@/shared/constants/providers";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
+import { PCM_RATES } from "open-sse/config/ttsCodecs.js";
 
 // ── ModelRow ───────────────────────────────────────────────────
-export function ModelRow({ model, fullModel, copied, onCopy, testStatus, isCustom, isFree, onDeleteAlias, onTest, isTesting }) {
+export function ModelRow({ model, fullModel, copied, onCopy, testStatus, isCustom, isFree, onDeleteAlias, onTest, isTesting, onConfigure }) {
   const borderColor = testStatus === "ok" ? "border-green-500/40" : testStatus === "error" ? "border-red-500/40" : "border-border";
   const iconColor = testStatus === "ok" ? "#22c55e" : testStatus === "error" ? "#ef4444" : undefined;
 
@@ -22,8 +23,9 @@ export function ModelRow({ model, fullModel, copied, onCopy, testStatus, isCusto
         </span>
         <div className="flex flex-col gap-1">
           <code className="text-xs text-text-muted font-mono bg-sidebar px-1.5 py-0.5 rounded">{fullModel}</code>
-          {model.name && <span className="text-[9px] text-text-muted/70 italic pl-1">{model.name}</span>}
+          {(model.name || model.upstreamFormat) && <span className="text-[9px] text-text-muted/70 italic pl-1">{model.name}{model.upstreamFormat && <span className="text-primary not-italic"> ({model.upstreamFormat.replace(/^pcm_(\d+)_(1|2)$/, (_, rate, channels) => `PCM ${Number(rate) / 1000}k${channels === "2" ? " ×2" : ""}`)})</span>}</span>}
         </div>
+        {onConfigure && <button type="button" onClick={onConfigure} aria-label={`Configure codec for ${model.id}`} title="Configure codec" className="p-1 text-text-muted hover:text-primary opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"><span className="material-symbols-outlined text-sm">settings</span></button>}
         {onTest && (
           <div className="relative group/btn">
             <button onClick={onTest} disabled={isTesting} className={`p-0.5 hover:bg-sidebar rounded text-text-muted hover:text-primary transition-opacity ${isTesting ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
@@ -66,6 +68,7 @@ ModelRow.propTypes = {
   onDeleteAlias: PropTypes.func,
   onTest: PropTypes.func,
   isTesting: PropTypes.bool,
+  onConfigure: PropTypes.func,
 };
 
 // ── AddCustomModelModal ────────────────────────────────────────
@@ -118,6 +121,10 @@ export default function ModelsCard({ providerId, kindFilter, providerAliasOverri
   const [testingModelId, setTestingModelId] = useState(null);
   const [testError, setTestError] = useState("");
   const [showAddCustomModel, setShowAddCustomModel] = useState(false);
+  const [codecModel, setCodecModel] = useState(null);
+  const [codec, setCodec] = useState("");
+  const [codecError, setCodecError] = useState("");
+  const [codecSaving, setCodecSaving] = useState(false);
 
   const providerAlias = providerAliasOverride || getProviderAlias(providerId);
   const effectiveType = kindFilter || "llm";
@@ -216,6 +223,8 @@ export default function ModelsCard({ providerId, kindFilter, providerAliasOverri
   );
 
   const displayModels = applyQoderModelNames(builtInModels, customModels, providerAlias);
+  const configured = (model) => customModels.find((m) => m.providerAlias === providerAlias && m.type === "tts" && m.id === model.id)?.upstreamFormat || "";
+  const configure = (model) => { setCodecModel(model); setCodec(configured(model)); setCodecError(""); };
 
   return (
     <>
@@ -232,7 +241,7 @@ export default function ModelsCard({ providerId, kindFilter, providerAliasOverri
             return (
               <ModelRow
                 key={model.id}
-                model={model}
+                model={{ ...model, upstreamFormat: configured(model) }}
                 fullModel={`${providerAlias}/${model.id}`}
                 alias={existingAlias}
                 copied={copied}
@@ -243,6 +252,7 @@ export default function ModelsCard({ providerId, kindFilter, providerAliasOverri
                 onTest={() => handleTestModel(model.id)}
                 isTesting={testingModelId === model.id}
                 isFree={model.isFree}
+                onConfigure={kindFilter === "tts" ? () => configure(model) : undefined}
               />
             );
           })}
@@ -250,7 +260,7 @@ export default function ModelsCard({ providerId, kindFilter, providerAliasOverri
           {myCustomModels.map((model) => (
             <ModelRow
               key={`${model.id}-${model.type}`}
-              model={{ id: model.id, name: model.name }}
+              model={model}
               fullModel={`${providerAlias}/${model.id}`}
               copied={copied}
               onCopy={copy}
@@ -260,6 +270,7 @@ export default function ModelsCard({ providerId, kindFilter, providerAliasOverri
               onTest={() => handleTestModel(model.id)}
               isTesting={testingModelId === model.id}
               isCustom
+              onConfigure={kindFilter === "tts" ? () => configure(model) : undefined}
             />
           ))}
 
@@ -281,6 +292,29 @@ export default function ModelsCard({ providerId, kindFilter, providerAliasOverri
         }}
         onClose={() => setShowAddCustomModel(false)}
       />
+      <Modal isOpen={!!codecModel} title="Model upstream codec" onClose={() => { if (!codecSaving) setCodecModel(null); }}>
+        <div className="flex flex-col gap-4">
+          <p className="text-sm break-all">{codecModel?.id}</p>
+          <p className="text-xs text-text-muted">Codec overrides require an adapter that supports them (OpenAI, OpenRouter or self-hosted TTS).</p>
+          <label className="text-sm">Forced upstream codec
+            <select value={codec} onChange={(e) => setCodec(e.target.value)} className="w-full mt-1 px-3 py-2 text-sm border border-border rounded-lg bg-background">
+              <option value="">Provider default</option>
+              <option value="mp3">MP3</option><option value="wav">WAV</option>
+              <option value="pcm">PCM 24 kHz mono (16-bit)</option>
+              {PCM_RATES.flatMap((rate) => [1, 2].map((channels) => <option key={`${rate}-${channels}`} value={`pcm_${rate}_${channels}`}>PCM {rate} Hz {channels === 1 ? "mono" : "stereo"} (16-bit)</option>))}
+            </select>
+          </label>
+          {codecError && <p role="alert" className="text-sm text-red-500">{codecError}</p>}
+          <Button disabled={codecSaving} onClick={async () => {
+            setCodecSaving(true); setCodecError("");
+            try {
+              const res = await fetch("/api/models/custom", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ providerAlias, id: codecModel.id, type: "tts", upstreamFormat: codec }) });
+              if (!res.ok) throw new Error("Failed to save model codec");
+              await fetchData(); window.dispatchEvent(new Event("customModelChanged")); setCodecModel(null);
+            } catch (err) { setCodecError(err.message); } finally { setCodecSaving(false); }
+          }}>Save</Button>
+        </div>
+      </Modal>
     </>
   );
 }
