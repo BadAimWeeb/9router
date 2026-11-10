@@ -9,7 +9,7 @@ module.exports = function codexWebSocket(server, req, socket, head) {
   const realtime = url.pathname === "/v1/realtime";
   if (!realtime && url.pathname !== "/v1/codex-voice/ws") return false;
   const reject = (status) => socket.end(`HTTP/1.1 ${status}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
-  if (req.method !== "GET" || req.headers.origin || url.searchParams.get("model") !== "cx/gpt-live-1-codex" || (!req.headers.authorization && !req.headers["x-api-key"]) || !/\bupgrade\b/i.test(req.headers.connection || "") || req.headers["sec-websocket-version"] !== "13" || !/^[+/0-9A-Za-z]{22}==$/.test(req.headers["sec-websocket-key"] || "")) {
+  if (req.method !== "GET" || req.headers.origin || url.searchParams.getAll("model").length !== 1 || url.searchParams.get("model") !== "cx/gpt-live-1-codex" || (!req.headers.authorization && !req.headers["x-api-key"]) || !/\bupgrade\b/i.test(req.headers.connection || "") || req.headers["sec-websocket-version"] !== "13" || !/^[+/0-9A-Za-z]{22}==$/.test(req.headers["sec-websocket-key"] || "")) {
     reject("400 Bad Request");
     return true;
   }

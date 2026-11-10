@@ -56,6 +56,7 @@ function localRequest(pathname, headers = {}) {
 describe("dashboard guard public LLM API access", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    globalThis[Symbol.for("9router.realtime.internal-secret")] = "realtime-secret";
     process.env.NINEROUTER_PEER_TOKEN = PEER_TOKEN;
     mocks.getSettings.mockResolvedValue({ requireLogin: true });
     mocks.validateApiKey.mockResolvedValue(false);
@@ -142,6 +143,24 @@ describe("dashboard guard public LLM API access", () => {
 
     expect(response).toBe(mocks.nextResponse);
     expect(mocks.validateApiKey).toHaveBeenCalledWith("sk-valid");
+  });
+
+  it("allows only the authenticated realtime relay to reach credential resolution", async () => {
+    const response = await proxy(localRequest("/api/internal/realtime-credentials", {
+      "x-9r-realtime-secret": "realtime-secret",
+    }));
+
+    expect(response).toBe(mocks.nextResponse);
+  });
+
+  it("does not make the realtime credential route public", async () => {
+    const response = await proxy(request("/api/internal/realtime-credentials", {
+      "x-9r-realtime-secret": "wrong-secret",
+      "x-9r-real-ip": "127.0.0.1",
+    }));
+
+    expect(response.status).toBe(401);
+    expect(response.body.error).toBe("Unauthorized");
   });
 
   it("allows remote codex rewrite with valid API key", async () => {
