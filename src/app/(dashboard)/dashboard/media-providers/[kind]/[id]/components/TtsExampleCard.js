@@ -55,6 +55,7 @@ export function TtsExampleCard({ providerId }) {
   const config = TTS_PROVIDER_CONFIG[providerId] || TTS_PROVIDER_CONFIG["edge-tts"];
   const formatOptions = config.formatOptions || [
     { value: "mp3", label: "MP3 (Binary)" },
+    { value: "wav", label: "WAV (Binary)" },
     { value: "json", label: "JSON (Base64)" },
   ];
 
@@ -106,7 +107,6 @@ export function TtsExampleCard({ providerId }) {
   const [connectionCount, setConnectionCount] = useState(0);
 
   useEffect(() => {
-    if (providerId !== "openrouter") return;
     const load = () => fetch("/api/models/custom", { cache: "no-store" })
       .then((r) => r.json())
       .then((d) => setCustomModels((d.models || []).filter((m) => m.providerAlias === providerAlias && getModelKind(m) === "tts")))
@@ -405,6 +405,32 @@ export function TtsExampleCard({ providerId }) {
                     <option key={m.id} value={m.id}>{m.name || m.id}</option>
                   ));
                 })()}
+              </select>
+            </Row>
+          )}
+
+          {selectedModel && (
+            <Row label="Model upstream codec">
+              <select
+                aria-label="Model upstream codec"
+                value={customModels.find((m) => m.id === selectedModel)?.upstreamFormat || ""}
+                onChange={async (e) => {
+                  const upstreamFormat = e.target.value;
+                  try {
+                    const res = await fetch("/api/models/custom", {
+                      method: "POST", headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ providerAlias, id: selectedModel, type: "tts", upstreamFormat }),
+                    });
+                    if (!res.ok) throw new Error("Failed to save model codec");
+                    window.dispatchEvent(new Event("customModelChanged"));
+                  } catch (err) { setError(err.message); }
+                }}
+                className="w-full px-3 py-1.5 text-sm border border-border rounded-lg bg-background focus:outline-none focus:border-primary"
+              >
+                <option value="">Provider default</option>
+                <option value="pcm">PCM (24 kHz mono 16-bit)</option>
+                <option value="wav">WAV</option>
+                <option value="mp3">MP3</option>
               </select>
             </Row>
           )}
