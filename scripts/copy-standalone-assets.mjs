@@ -37,7 +37,7 @@ export function copyStandaloneAssets({ projectRoot = process.cwd(), distDir = pr
     cpSync(serverWrapperSource, serverWrapperDestination, { force: true });
     console.log(`[standalone-assets] Copied custom-server.js to ${serverWrapperDestination}`);
   }
-  cpSync(resolve(projectRoot, "codex-websocket.js"), resolve(standaloneDir, "codex-websocket.js"));
+  cpSync(resolve(projectRoot, "realtime"), resolve(standaloneDir, "realtime"), { recursive: true, force: true });
   cpSync(resolve(projectRoot, "node_modules/ws"), resolve(standaloneDir, "node_modules/ws"), { recursive: true, force: true });
 }
 
