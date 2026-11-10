@@ -4,6 +4,7 @@ import { PROVIDER_MEDIA } from "../../providers/index.js";
 const TTS_CFG = PROVIDER_MEDIA["openrouter"]?.ttsConfig || {};
 
 export default {
+  supportsUpstreamFormat: true,
   async synthesize(text, model, credentials, responseFormat, options = {}) {
     if (!credentials?.apiKey) throw new Error("No OpenRouter API key configured");
 
@@ -34,7 +35,7 @@ export default {
       body: JSON.stringify({
         model: ttsModel,
         modalities: ["text", "audio"],
-        audio: { voice, format: "wav" },
+        audio: { voice, format: options.upstreamFormat || "wav" },
         stream: true,
         messages: [{ role: "user", content: text }],
       }),
@@ -47,13 +48,13 @@ export default {
         const speech = await fetch(TTS_CFG.speechUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${credentials.apiKey}`, ...(TTS_CFG.headers || {}) },
-          body: JSON.stringify({ model: ttsModel, input: text, voice, response_format: "mp3" }),
+          body: JSON.stringify({ model: ttsModel, input: text, voice, response_format: options.upstreamFormat || "mp3" }),
         });
         if (!speech.ok) {
           const failure = await speech.json().catch(() => ({}));
           throw new Error(failure?.error?.message || `OpenRouter TTS failed: ${speech.status}`);
         }
-        return { base64: Buffer.from(await speech.arrayBuffer()).toString("base64"), format: "mp3" };
+        return { base64: Buffer.from(await speech.arrayBuffer()).toString("base64"), format: options.upstreamFormat || "mp3" };
       }
       throw new Error(err?.error?.message || `OpenRouter TTS failed: ${res.status}`);
     }
@@ -81,6 +82,6 @@ export default {
     }
 
     if (chunks.length === 0) throw new Error("OpenRouter TTS returned no audio data");
-    return { base64: chunks.join(""), format: "wav" };
+    return { base64: Buffer.concat(chunks.map((chunk) => Buffer.from(chunk, "base64"))).toString("base64"), format: options.upstreamFormat || "wav" };
   },
 };
