@@ -27,7 +27,7 @@ module.exports = function codexWebSocket(server, req, socket, head) {
   const request = (path, method = "POST", body) => http.request({ host, port: address.port, path, method, headers, agent: false });
   const setup = request("/v1/codex-voice?format=pcm16");
   let stream, ws, upload, id, closed = false, pending = false;
-  let response;
+  let response, responseTimer, responseDeadline, audioTimer, audioBuffer = [], audioBytes = 0;
   const makeId = (prefix) => `${prefix}_${randomUUID().replace(/-/g, "")}`;
   const send = (event, raw = false) => {
     if (closed || !ws || ws.readyState !== 1 || ws.bufferedAmount > 262144) return close();
@@ -37,6 +37,9 @@ module.exports = function codexWebSocket(server, req, socket, head) {
   const close = () => {
     if (closed) return;
     closed = true;
+    clearTimeout(responseTimer);
+    clearTimeout(audioTimer);
+    audioBuffer = [];
     finishSetup();
     setup.destroy();
     stream?.destroy();
@@ -92,16 +95,29 @@ module.exports = function codexWebSocket(server, req, socket, head) {
         upload.end(body);
       }
     }); } catch { return close(); }
+    const finishResponse = () => {
+      clearTimeout(responseTimer);
+      if (!response) return;
+      send({ type: "response.done", response: { object: "realtime.response", id: response.id, status: "incomplete", status_details: { type: "incomplete" }, output: [{ id: response.item, object: "realtime.item", type: "message", status: "incomplete", role: "assistant", content: [{ type: "output_audio", transcript: response.transcript }] }] } });
+      response = null;
+    };
+    // ponytail: control and RTP are unordered; retain only five seconds of PCM and use a bounded quiet tail until media correlation exists.
+    const scheduleResponse = () => {
+      clearTimeout(responseTimer);
+      if (!closed) responseTimer = setTimeout(finishResponse, Math.max(0, Math.min(250, responseDeadline - performance.now())));
+    };
+    const sendAudio = (payload) => send({ type: "response.output_audio.delta", response_id: response.id, item_id: response.item, output_index: 0, content_index: 0, delta: payload });
     let buffer = "";
     res.setEncoding("utf8");
     res.on("data", (chunk) => {
       buffer += chunk;
-      if (buffer.length > 131072) return close();
       let newline;
       while ((newline = buffer.indexOf("\n")) !== -1) {
+        if (newline > 131072) return close();
         let event;
         try { event = JSON.parse(buffer.slice(0, newline)); } catch { return close(); }
         buffer = buffer.slice(newline + 1);
+        if (!event || typeof event !== "object" || Array.isArray(event)) return close();
         if (event.type === "session") {
           id = event.id;
           if (realtime) send({ type: "session.created", session: { id: makeId("sess"), object: "realtime.session", type: "realtime", model: "cx/gpt-live-1-codex", audio: { input: { format: { type: "audio/pcm", rate: 24000 } }, output: { format: { type: "audio/pcm", rate: 24000 } } } } });
@@ -109,18 +125,29 @@ module.exports = function codexWebSocket(server, req, socket, head) {
         }
         if (ws.readyState !== 1 || ws.bufferedAmount > 262144) return close();
         if (realtime) {
-          // ponytail: RTP has no reliable response boundary; report control-channel completion as incomplete until media correlation exists.
           if (event.type === "audio") {
-            if (!response) {
-              response = { id: makeId("resp"), item: makeId("item") };
-              send({ type: "response.created", response: { object: "realtime.response", id: response.id, status: "in_progress", output: [] } });
-              send({ type: "response.output_item.added", response_id: response.id, output_index: 0, item: { id: response.item, object: "realtime.item", type: "message", status: "in_progress", role: "assistant", content: [] } });
-              send({ type: "response.content_part.added", response_id: response.id, item_id: response.item, output_index: 0, content_index: 0, part: { type: "audio" } });
+            if (typeof event.payload !== "string" || !event.payload || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(event.payload) || Buffer.from(event.payload, "base64").length % 2) return close();
+            if (response && performance.now() >= responseDeadline) finishResponse();
+            if (response) { sendAudio(event.payload); scheduleResponse(); }
+            else if (typeof event.payload === "string" && event.payload.length <= 320000) {
+              audioBuffer.push({ payload: event.payload, at: performance.now() });
+              audioBytes += event.payload.length;
+              while (audioBytes > 320000 || audioBuffer.length > 250 || audioBuffer[0].at < performance.now() - 5000) audioBytes -= audioBuffer.shift().payload.length;
+              if (!audioTimer) audioTimer = setTimeout(() => { audioBuffer = []; audioBytes = 0; audioTimer = null; }, 5000);
             }
-            send({ type: "response.output_audio.delta", response_id: response.id, item_id: response.item, output_index: 0, content_index: 0, delta: event.payload });
-          } else if (event.event?.type === "response.done" && response) {
-            send({ type: "response.done", response: { object: "realtime.response", id: response.id, status: "incomplete", status_details: { type: "incomplete" }, output: [{ id: response.item, object: "realtime.item", type: "message", status: "incomplete", role: "assistant", content: [{ type: "output_audio" }] }] } });
-            response = null;
+          } else if (event.event?.type === "turn.done" && event.event.turn?.role === "assistant" && typeof event.event.turn.transcript === "string") {
+            finishResponse();
+            response = { id: makeId("resp"), item: makeId("item"), transcript: event.event.turn.transcript };
+            send({ type: "response.created", response: { object: "realtime.response", id: response.id, status: "in_progress", output: [] } });
+            send({ type: "response.output_item.added", response_id: response.id, output_index: 0, item: { id: response.item, object: "realtime.item", type: "message", status: "in_progress", role: "assistant", content: [] } });
+            send({ type: "response.content_part.added", response_id: response.id, item_id: response.item, output_index: 0, content_index: 0, part: { type: "audio" } });
+            for (const chunk of audioBuffer) if (chunk.at >= performance.now() - 5000) sendAudio(chunk.payload);
+            clearTimeout(audioTimer);
+            audioTimer = null;
+            audioBuffer = []; audioBytes = 0;
+            send({ type: "response.output_audio_transcript.done", response_id: response.id, item_id: response.item, output_index: 0, content_index: 0, transcript: response.transcript });
+            responseDeadline = performance.now() + 1000;
+            scheduleResponse();
           }
           continue;
         }
@@ -128,6 +155,7 @@ module.exports = function codexWebSocket(server, req, socket, head) {
         const output = event.type === "audio" ? { type: "9router.audio.delta", audio: event.payload } : event.event;
         send(output, true);
       }
+      if (buffer.length > 131072) return close();
     });
     res.on("end", close);
     res.on("error", close);
