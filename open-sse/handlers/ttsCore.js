@@ -2,6 +2,7 @@ import { Buffer } from "node:buffer";
 import { createErrorResult } from "../utils/error.js";
 import { HTTP_STATUS } from "../config/runtimeConfig.js";
 import { getTtsAdapter, synthesizeViaConfig } from "./ttsProviders/index.js";
+import { pcmLayout, TTS_UPSTREAM_FORMATS } from "../config/ttsCodecs.js";
 
 // Re-export voice fetchers + voices APIs for backward compat with existing routes
 export {
@@ -52,7 +53,10 @@ export async function handleTtsCore({ provider, model, input, credentials, respo
   if (typeof input !== "string" || !input.trim()) {
     return createErrorResult(HTTP_STATUS.BAD_REQUEST, "Missing required field: input");
   }
-  if (upstreamFormat !== undefined && !["pcm", "wav", "mp3"].includes(upstreamFormat)) return createErrorResult(400, "upstream_response_format must be pcm, wav or mp3");
+  if (responseFormat === "pcm") return createErrorResult(400, "PCM output is not supported; request WAV or MP3");
+  if (upstreamFormat !== undefined && !TTS_UPSTREAM_FORMATS.includes(upstreamFormat)) return createErrorResult(400, "Invalid upstream_response_format");
+  const layout = pcmLayout(upstreamFormat);
+  const upstreamCodec = layout ? "pcm" : upstreamFormat;
 
   try {
     if (provider === "codex") {
@@ -71,21 +75,23 @@ export async function handleTtsCore({ provider, model, input, credentials, respo
     const adapter = getTtsAdapter(provider);
     if (adapter) {
       if (upstreamFormat && !adapter.supportsUpstreamFormat) return createErrorResult(400, "Upstream codec override is not supported by this adapter");
-      const result = await adapter.synthesize(input.trim(), model, credentials, upstreamFormat || responseFormat, { language, style, voice, upstreamFormat });
+      const result = await adapter.synthesize(input.trim(), model, credentials, upstreamCodec || responseFormat, { language, style, voice, upstreamFormat: upstreamCodec });
       // Adapter may return a full {success, response} (legacy) or {base64, format}
       if (result.success !== undefined) return result;
-      if (result.format === "pcm" && ["wav", "mp3"].includes(responseFormat)) {
+      if (result.format === "pcm") {
         const pcm = Buffer.from(result.base64, "base64");
-        if (pcm.length % 2 || pcm.length > 6 * 1024 * 1024) throw new Error("Invalid or oversized PCM audio");
-        // ponytail: OpenAI PCM is 24 kHz mono signed 16-bit; add metadata for other PCM layouts.
+        const { rate, channels } = layout || pcmLayout("pcm");
+        if (!pcm.length || pcm.length % (channels * 2) || pcm.length > 6 * 1024 * 1024) throw new Error("Invalid or oversized PCM audio");
+        if (!["wav", "mp3", "json"].includes(responseFormat)) return createErrorResult(400, "PCM can only be converted to WAV or MP3");
         const header = Buffer.alloc(44);
         header.write("RIFF"); header.writeUInt32LE(36 + pcm.length, 4); header.write("WAVEfmt ", 8);
-        header.writeUInt32LE(16, 16); header.writeUInt16LE(1, 20); header.writeUInt16LE(1, 22);
-        header.writeUInt32LE(24000, 24); header.writeUInt32LE(48000, 28); header.writeUInt16LE(2, 32); header.writeUInt16LE(16, 34);
+        header.writeUInt32LE(16, 16); header.writeUInt16LE(1, 20); header.writeUInt16LE(channels, 22);
+        header.writeUInt32LE(rate, 24); header.writeUInt32LE(rate * channels * 2, 28); header.writeUInt16LE(channels * 2, 32); header.writeUInt16LE(16, 34);
         header.write("data", 36); header.writeUInt32LE(pcm.length, 40);
         const wav = Buffer.concat([header, pcm]);
-        const output = responseFormat === "wav" ? wav : await (await import("./codexTtsAudio.js")).codexWavToMp3(wav, signal);
-        return createTtsResponse(output.toString("base64"), responseFormat, responseFormat);
+        const format = responseFormat === "mp3" ? "mp3" : "wav";
+        const output = format === "wav" ? wav : await (await import("./codexTtsAudio.js")).codexWavToMp3(wav, signal);
+        return createTtsResponse(output.toString("base64"), format, responseFormat);
       }
       if (upstreamFormat && responseFormat !== "json" && result.format !== responseFormat) return createErrorResult(400, `Conversion from ${result.format} to ${responseFormat} is not supported`);
       return createTtsResponse(result.base64, result.format, responseFormat);
@@ -94,6 +100,7 @@ export async function handleTtsCore({ provider, model, input, credentials, respo
     // Generic config-driven (hyperbolic, deepgram, nvidia, huggingface, inworld, cartesia, playht, coqui, tortoise, qwen, ...)
     if (upstreamFormat) return createErrorResult(400, "Upstream codec override is not supported by this adapter");
     const result = await synthesizeViaConfig(provider, input.trim(), model, credentials);
+    if (result?.format === "pcm") throw new Error("PCM output from this provider requires explicit layout support");
     if (result) return createTtsResponse(result.base64, result.format, responseFormat);
 
     return createErrorResult(HTTP_STATUS.BAD_REQUEST, `Provider '${provider}' does not support TTS via this route.`);

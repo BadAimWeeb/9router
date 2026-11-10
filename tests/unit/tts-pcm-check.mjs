@@ -16,6 +16,17 @@ try {
   assert.equal(bytes.toString("ascii", 0, 4), "RIFF");
   assert.equal(bytes.readUInt32LE(24), 24000);
   assert.deepEqual(bytes.subarray(44), Buffer.from([0, 0, 255, 127]));
+  const stereo = await handleTtsCore({ ...args, upstreamFormat: "pcm_48000_2", responseFormat: "wav" });
+  const stereoBytes = Buffer.from(await stereo.response.arrayBuffer());
+  assert.equal(sent.response_format, "pcm");
+  assert.equal(stereoBytes.readUInt16LE(22), 2);
+  assert.equal(stereoBytes.readUInt32LE(24), 48000);
+  assert.equal(stereoBytes.readUInt32LE(28), 192000);
+  const json = await handleTtsCore({ ...args, responseFormat: "json" });
+  const jsonBody = await json.response.json();
+  assert.equal(jsonBody.format, "wav");
+  assert.equal(Buffer.from(jsonBody.audio, "base64").toString("ascii", 0, 4), "RIFF");
+  assert.equal((await handleTtsCore({ ...args, responseFormat: "pcm" })).status, 400);
   const mp3 = await handleTtsCore({ ...args, responseFormat: "mp3" });
   assert.equal(mp3.success, true);
   assert.equal(mp3.response.headers.get("content-type"), "audio/mpeg");
