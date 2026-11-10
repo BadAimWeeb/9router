@@ -182,10 +182,11 @@ export default function MediaProviderDetailPage() {
       )}
 
       {/* Provider Info — config-driven, supports searchConfig, fetchConfig, ttsConfig, embeddingConfig, systemoneConfig, searchViaChat */}
-      {!isCustom && (provider.searchConfig || provider.fetchConfig || provider.ttsConfig || provider.sttConfig || provider.embeddingConfig || provider.systemoneConfig || provider.searchViaChat) && (
+      {!isCustom && (kind === "realtime" || provider.searchConfig || provider.fetchConfig || provider.ttsConfig || provider.sttConfig || provider.embeddingConfig || provider.systemoneConfig || provider.searchViaChat) && (
         <ProviderInfoCard
           config={
-            kind === "webFetch" ? provider.fetchConfig
+            kind === "realtime" ? { mode: "WebSocket", baseUrl: "/v1/realtime" }
+              : kind === "webFetch" ? provider.fetchConfig
               : kind === "tts" ? provider.ttsConfig
               : kind === "stt" ? provider.sttConfig
               : kind === "embedding" ? provider.embeddingConfig
