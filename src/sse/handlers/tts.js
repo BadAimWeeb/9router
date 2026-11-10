@@ -2,13 +2,13 @@ import {
   extractApiKey, isValidApiKey,
   getProviderCredentials, markAccountUnavailable, clearAccountError,
 } from "../services/auth.js";
-import { getSettings } from "@/lib/localDb";
+import { getSettings, getCustomModels } from "@/lib/localDb";
 import { getModelInfo, getComboModels } from "../services/model.js";
 import { getKeyAccessContext, enforceKeyAccess } from "../services/keyAccess.js";
 import { handleTtsCore } from "open-sse/handlers/ttsCore.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
-import { AI_PROVIDERS } from "@/shared/constants/providers";
+import { AI_PROVIDERS, getProviderAlias } from "@/shared/constants/providers";
 import { handleComboChat } from "open-sse/services/combo.js";
 import * as log from "../utils/logger.js";
 import { checkAndRefreshToken } from "../services/tokenRefresh.js";
@@ -77,11 +77,15 @@ async function handleSingleModelTts(body, modelStr, responseFormat, language, st
   if (!modelInfo.provider) return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid model format");
 
   const { provider, model } = modelInfo;
+  const customModels = await getCustomModels();
+  const alias = getProviderAlias(provider);
+  const modelConfig = customModels.filter((m) => m.type === "tts" && (m.providerAlias === alias || m.providerAlias === provider) && (model === m.id || model.startsWith(`${m.id}/`))).sort((a, b) => b.id.length - a.id.length)[0];
+  const upstreamFormat = body.upstream_response_format ?? (modelConfig?.upstreamFormat || undefined);
   log.info("ROUTING", `Provider: ${provider}, Voice: ${model}`);
 
   // noAuth providers — no credential needed
   if (!CREDENTIALED_PROVIDERS.has(provider)) {
-    const result = await handleTtsCore({ provider, model, input: body.input, responseFormat, language, style, voice: body.voice });
+    const result = await handleTtsCore({ provider, model, input: body.input, responseFormat, upstreamFormat, language, style, voice: body.voice, signal });
     if (result.success) return result.response;
     return errorResponse(result.status || HTTP_STATUS.BAD_GATEWAY, result.error || "TTS failed");
   }
@@ -102,7 +106,7 @@ async function handleSingleModelTts(body, modelStr, responseFormat, language, st
       }
       if (excludeConnectionIds.size === 0) {
         if (provider === "ollama-local") {
-          const result = await handleTtsCore({ provider, model, input: body.input, credentials: null, responseFormat, language, style });
+          const result = await handleTtsCore({ provider, model, input: body.input, credentials: null, responseFormat, upstreamFormat, language, style, signal });
           if (result.success) return result.response;
           return errorResponse(result.status || HTTP_STATUS.BAD_GATEWAY, result.error || "TTS failed");
         }
@@ -117,7 +121,7 @@ async function handleSingleModelTts(body, modelStr, responseFormat, language, st
     try {
       if (provider === "codex") credentials = await checkAndRefreshToken(provider, credentials);
       const proxyOptions = provider === "codex" ? await resolveConnectionProxyConfig(credentials._connection?.providerSpecificData || credentials.providerSpecificData) : undefined;
-      const args = { provider, model, input: body.input, credentials, responseFormat, language, style, voice: body.voice, signal, proxyOptions };
+      const args = { provider, model, input: body.input, credentials, responseFormat, upstreamFormat, language, style, voice: body.voice, signal, proxyOptions };
       result = await handleTtsCore(args);
       if (provider === "codex" && result.status === 401 && credentials.refreshToken && !signal.aborted) {
         const previous = credentials.accessToken;
@@ -130,6 +134,8 @@ async function handleSingleModelTts(body, modelStr, responseFormat, language, st
     }
 
     if (result.success) return result.response;
+
+    if (result.status === 400) return result.response || errorResponse(result.status, result.error);
 
     if (provider === "codex" && ([400, 503, 504].includes(result.status) || signal.aborted)) return result.response || errorResponse(result.status, result.error);
 
