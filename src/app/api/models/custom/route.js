@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCustomModels, addCustomModel, deleteCustomModel } from "@/models";
 import { CAPACITY_META, isSttTransport } from "@/shared/constants/models";
+import { TTS_UPSTREAM_FORMATS } from "open-sse/config/ttsCodecs.js";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +45,7 @@ export async function POST(request) {
     }
     const cleanCaps = sanitizeCaps(caps);
     const cleanTransport = sanitizeTransport(transport, type || "llm");
-    if (upstreamFormat !== undefined && (type !== "tts" || !["", "pcm", "wav", "mp3"].includes(upstreamFormat))) {
+    if (upstreamFormat !== undefined && (type !== "tts" || !["", ...TTS_UPSTREAM_FORMATS].includes(upstreamFormat))) {
       return NextResponse.json({ error: "Invalid TTS upstream format" }, { status: 400 });
     }
     const added = await addCustomModel({ providerAlias, id, type: type || "llm", name, ...(cleanCaps ? { caps: cleanCaps } : {}), ...(cleanTransport ? { transport: cleanTransport } : {}), ...(upstreamFormat !== undefined ? { upstreamFormat } : {}) });
