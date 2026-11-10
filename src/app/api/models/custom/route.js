@@ -45,13 +45,16 @@ export async function GET() {
 // POST /api/models/custom - Add custom model
 export async function POST(request) {
   try {
-    const { providerAlias, id, type, name, caps, transport, upstreamModelId } = await request.json();
+    const { providerAlias, id, type, name, caps, transport, upstreamModelId, upstreamFormat } = await request.json();
     if (!providerAlias || !id) {
       return NextResponse.json({ error: "providerAlias and id required" }, { status: 400 });
     }
     const cleanCaps = sanitizeCaps(caps);
     const cleanTransport = sanitizeTransport(transport, type || "llm");
     const cleanUpstreamModelId = sanitizeUpstreamModelId(upstreamModelId);
+    if (upstreamFormat !== undefined && (type !== "tts" || !["", "pcm", "wav", "mp3"].includes(upstreamFormat))) {
+      return NextResponse.json({ error: "Invalid TTS upstream format" }, { status: 400 });
+    }
     const added = await addCustomModel({
       providerAlias,
       id,
@@ -60,6 +63,7 @@ export async function POST(request) {
       ...(cleanCaps ? { caps: cleanCaps } : {}),
       ...(cleanTransport ? { transport: cleanTransport } : {}),
       ...(cleanUpstreamModelId ? { upstreamModelId: cleanUpstreamModelId } : {}),
+      ...(upstreamFormat !== undefined ? { upstreamFormat } : {}),
     });
     return NextResponse.json({ success: true, added });
   } catch (error) {

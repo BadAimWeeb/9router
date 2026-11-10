@@ -31,7 +31,7 @@ export async function getCustomModels() {
 
 // Atomic upsert inside transaction to prevent duplicate races.
 // Re-adding an existing model updates caps/name/transport without resetting omitted fields.
-export async function addCustomModel({ providerAlias, id, type = "llm", name, caps, transport, upstreamModelId }) {
+export async function addCustomModel({ providerAlias, id, type = "llm", name, caps, transport, upstreamModelId, upstreamFormat }) {
   const k = customKey(providerAlias, id, type);
   const db = await getAdapter();
   const cleanUpstream = typeof upstreamModelId === "string" && upstreamModelId.trim()
@@ -48,6 +48,7 @@ export async function addCustomModel({ providerAlias, id, type = "llm", name, ca
         ...(caps ? { caps } : {}),
         ...(transport ? { transport } : {}),
         ...(cleanUpstream ? { upstreamModelId: cleanUpstream } : {}),
+        ...(upstreamFormat !== undefined ? { upstreamFormat } : {}),
       };
       db.run(`UPDATE kv SET value = ? WHERE scope = 'customModels' AND key = ?`, [stringifyJson(next), k]);
       return;
@@ -60,6 +61,7 @@ export async function addCustomModel({ providerAlias, id, type = "llm", name, ca
       ...(caps ? { caps } : {}),
       ...(transport ? { transport } : {}),
       ...(cleanUpstream ? { upstreamModelId: cleanUpstream } : {}),
+      ...(upstreamFormat !== undefined ? { upstreamFormat } : {}),
     });
     db.run(`INSERT INTO kv(scope, key, value) VALUES('customModels', ?, ?)`, [k, value]);
     added = true;

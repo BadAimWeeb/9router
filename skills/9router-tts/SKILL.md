@@ -31,6 +31,8 @@ curl "$NINEROUTER_URL/v1/audio/voices?provider=edge-tts&lang=vi" | jq '.data[].m
 
 Query `?response_format=mp3` (default, raw bytes) or `?response_format=json` (`{audio: base64, format}`).
 
+For PCM-only models, set the model's upstream codec in the TTS dashboard, or send `upstream_response_format: "pcm"` to override it per request. Set `response_format` to `wav` or `mp3`; PCM must be 24 kHz mono signed 16-bit little-endian, and MP3 requires `ffmpeg` on the server. OpenAI, OpenRouter and self-hosted adapters support the override. JSON wraps the upstream audio.
+
 ## Examples
 
 Save MP3:
@@ -57,7 +59,7 @@ await writeFile("speech.mp3", Buffer.from(await r.arrayBuffer()));
 
 ## Response shape
 
-Default → raw audio bytes (Content-Type `audio/mp3`).
+Default → raw audio bytes (Content-Type `audio/mpeg` for MP3).
 
 `?response_format=json`:
 ```json
