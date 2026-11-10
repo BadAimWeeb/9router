@@ -6,7 +6,7 @@ import { once } from "node:events";
 
 const require = createRequire(import.meta.url);
 const { WebSocket } = require("ws");
-const upgrade = require("../../codex-websocket.js");
+const upgrade = require("../../realtime/codex-websocket.js");
 let output, audio, setups = 0, releaseUpload;
 const uploads = [];
 const server = http.createServer((req, res) => {
@@ -35,6 +35,12 @@ let rejected = "";
 for await (const chunk of invalid) rejected += chunk;
 assert.match(rejected, /^HTTP\/1\.1 400/);
 assert.equal(setups, 0);
+for (const query of ["&model=other", "&model=cx%2Fgpt-live-1-codex"]) {
+  const duplicate = new WebSocket(url + query, { headers: { authorization: "Bearer test" } });
+  duplicate.on("error", () => {});
+  assert.equal((await once(duplicate, "unexpected-response"))[1].statusCode, 400);
+  duplicate.terminate();
+}
 const bad = connect({ authorization: "Bearer wrong" });
 bad.on("error", () => {});
 assert.equal((await once(bad, "unexpected-response"))[1].statusCode, 401);
