@@ -101,3 +101,45 @@ describe("apiKeys access columns: upgrade from the previous schema", () => {
     expect((await db.getApiKeys()).length).toBe(2);
   });
 });
+
+describe("reusable key model groups", () => {
+  it("validates, persists, backs up and copies groups independently of later edits", async () => {
+    writeLegacyDb(tempDir);
+    const { db } = await boot();
+    const api = await import("@/app/api/key-model-groups/route.js");
+    const request = (method, body) => new Request("http://localhost/api/key-model-groups", {
+      method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    });
+    expect((await api.POST(request("POST", { name: "bad", allow: [42] }))).status).toBe(400);
+    const created = await api.POST(request("POST", { name: " Team ", allow: ["cx/*", "Main", "CX/*"] }));
+    expect(created.status).toBe(201);
+    const { group } = await created.json();
+    expect(group).toMatchObject({ name: "Team", allow: ["cx/*", "Main"] });
+    await db.updateApiKey("k1", { access: { restricted: true, allow: group.allow } });
+    await db.updateApiKey("k2", { access: { restricted: true, allow: group.allow } });
+    expect((await api.PUT(request("PUT", { id: group.id, name: "Changed", allow: ["openai/model"] }))).status).toBe(200);
+    expect((await db.getApiKeyById("k1")).access.allow).toEqual(["cx/*", "Main"]);
+    expect((await db.getApiKeyById("k2")).access.allow).toEqual(["cx/*", "Main"]);
+    const dump = await db.exportDb();
+    await api.DELETE(new Request(`http://localhost/api/key-model-groups?id=${group.id}`, { method: "DELETE" }));
+    expect((await (await api.GET()).json()).groups).toEqual([]);
+    await db.importDb(dump);
+    expect((await (await api.GET()).json()).groups[0]).toMatchObject({ id: group.id, name: "Changed", allow: ["openai/model"] });
+    expect((await db.getApiKeyById("k1")).access.allow).toEqual(["cx/*", "Main"]);
+  });
+});
+
+it("blocks deletion while linked and permits it after expansion", async () => {
+  writeLegacyDb(tempDir);
+  const { db } = await boot();
+  const api = await import("@/app/api/key-model-groups/route.js");
+  const request = (method, body) => new Request("http://localhost/api/key-model-groups", { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const { group } = await (await api.POST(request("POST", { name: "Team", allow: ["cx/*"] }))).json();
+  expect((await api.POST(request("POST", { name: "nested", allow: [`@group/${group.id}`] }))).status).toBe(400);
+  await db.updateApiKey("k1", { access: { restricted: true, allow: [`@group/${group.id}`] } });
+  const deleteRequest = () => new Request(`http://localhost/api/key-model-groups?id=${group.id}`, { method: "DELETE" });
+  expect((await api.DELETE(deleteRequest())).status).toBe(409);
+  await db.updateApiKey("k1", { access: { restricted: true, allow: group.allow } });
+  expect((await api.DELETE(deleteRequest())).status).toBe(200);
+  expect((await db.getApiKeyById("k1")).access.allow).toEqual(["cx/*"]);
+});

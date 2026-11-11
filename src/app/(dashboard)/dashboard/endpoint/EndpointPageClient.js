@@ -706,11 +706,11 @@ export default function APIPageClient({ machineId }) {
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.key) {
         setKeys(prev => prev.map(k => k.id === id ? { ...k, access: data.key.access } : k));
-      } else {
-        console.log("Error updating key access:", data.error || res.status);
+        return null;
       }
+      return data.error || `Failed to update key (${res.status})`;
     } catch (error) {
-      console.log("Error updating key access:", error);
+      return error.message || "Failed to update key access";
     }
   };
 

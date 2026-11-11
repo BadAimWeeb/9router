@@ -87,6 +87,8 @@ export default function ModelSelectModal({
   addedModelValues = [],
   closeOnSelect = true,
   allowProviderWildcard = false,
+  modelGroups = [],
+  modelGroupsError = "",
 }) {
   // Live-fetched connections on modal open, fallback to activeProviders prop
   const [fetchedConnections, setFetchedConnections] = useState(null);
@@ -525,6 +527,11 @@ export default function ModelSelectModal({
     return combos.filter(c => matchesSearch(c.name, parsedQuery));
   }, [combos, parsedQuery, kindFilter, capFilter]);
 
+  const filteredModelGroups = useMemo(() => modelGroups
+    .filter((group) => parsedQuery.isEmpty || matchesSearch(group.name, parsedQuery))
+    .map((group) => ({ value: `@group/${group.id}`, name: group.name })), [modelGroups, parsedQuery]);
+  const isGroupAdded = (value) => addedModelValues.some((entry) => entry.toLowerCase() === value.toLowerCase());
+
   // Sort models alphabetically, with added models floated to top
   const sortModels = (models) => {
     const added = models.filter(m => addedModelValues.includes(m.value)).sort((a, b) => a.name.localeCompare(b.name));
@@ -583,15 +590,15 @@ export default function ModelSelectModal({
         }
       });
     });
-    return list;
-  }, [filteredGroups]);
+    return [...list, ...filteredModelGroups];
+  }, [filteredGroups, filteredModelGroups]);
 
   const visibleUnadded = useMemo(() => {
-    return visibleModels.filter((m) => !addedModelValues.includes(m.value));
+    return visibleModels.filter((m) => m.value.startsWith("@group/") ? !isGroupAdded(m.value) : !addedModelValues.includes(m.value));
   }, [visibleModels, addedModelValues]);
 
   const visibleAdded = useMemo(() => {
-    return visibleModels.filter((m) => addedModelValues.includes(m.value));
+    return visibleModels.filter((m) => m.value.startsWith("@group/") ? isGroupAdded(m.value) : addedModelValues.includes(m.value));
   }, [visibleModels, addedModelValues]);
 
   const handleSelectAllVisible = () => {
@@ -614,7 +621,7 @@ export default function ModelSelectModal({
 
   const handleSelect = (model) => {
     const value = model?.value || model?.name || model;
-    const isAdded = addedModelValues.includes(value);
+    const isAdded = typeof value === "string" && value.toLowerCase().startsWith("@group/") ? isGroupAdded(value) : addedModelValues.includes(value);
 
     if (isAdded && onDeselect) {
       onDeselect(model);
@@ -649,6 +656,7 @@ export default function ModelSelectModal({
             : "Click to add, click again to remove. Search supports exclusions (e.g. claude -haiku) and RegEx (/pattern/)."}
         </span>
       </div>
+      {modelGroupsError && <p className="mb-2 text-xs text-red-500" role="alert">{modelGroupsError}</p>}
 
       {/* Search & batch actions */}
       <div className="mb-3 space-y-2">
@@ -694,7 +702,7 @@ export default function ModelSelectModal({
         {!closeOnSelect && visibleModels.length > 0 && (
           <div className="flex items-center justify-between px-1 text-[11px] text-text-muted">
             <span className="flex items-center gap-1.5">
-              <span>{visibleModels.length} models</span>
+              <span>{visibleModels.length} {modelGroups.length ? "models and groups" : "models"}</span>
               {addedModelValues.length > 0 && (
                 <span className="text-primary font-medium">({addedModelValues.length} selected)</span>
               )}
@@ -727,7 +735,30 @@ export default function ModelSelectModal({
 
       {/* Models grouped by provider - compact */}
       <div className="max-h-[400px] overflow-y-auto space-y-3">
-        {/* Combos section - always first */}
+        {filteredModelGroups.length > 0 && (
+          <div>
+            <div className="flex items-center gap-1.5 mb-1.5 sticky top-0 bg-surface py-0.5">
+              <span className="material-symbols-outlined text-primary text-[14px]">folder_shared</span>
+              <span className="text-xs font-medium text-primary">Model groups</span>
+              <span className="text-[10px] text-text-muted">({filteredModelGroups.length})</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {filteredModelGroups.map((group) => (
+                <button
+                  type="button"
+                  key={group.value}
+                  onClick={() => handleSelect(group)}
+                  aria-pressed={isGroupAdded(group.value)}
+                  className={`px-2 py-1 rounded-xl text-xs font-medium transition-all border cursor-pointer flex items-center gap-1 ${isGroupAdded(group.value) ? "bg-primary border-primary text-white hover:bg-primary-hover" : "bg-surface border-border text-text-main hover:border-primary/50 hover:bg-primary/5"}`}
+                >
+                  {isGroupAdded(group.value) && <span className="material-symbols-outlined leading-none" style={{ fontSize: "10px" }}>check</span>}
+                  {group.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {/* Combos section */}
         {filteredCombos.length > 0 && (
           <div>
             <div className="flex items-center gap-1.5 mb-1.5 sticky top-0 bg-surface py-0.5">
@@ -859,7 +890,7 @@ export default function ModelSelectModal({
         );
       })}
 
-      {Object.keys(filteredGroups).length === 0 && filteredCombos.length === 0 && (
+      {Object.keys(filteredGroups).length === 0 && filteredCombos.length === 0 && filteredModelGroups.length === 0 && (
         <div className="text-center py-4 text-text-muted">
           <span className="material-symbols-outlined text-2xl mb-1 block">
             search_off
@@ -892,4 +923,6 @@ ModelSelectModal.propTypes = {
   addedModelValues: PropTypes.arrayOf(PropTypes.string),
   closeOnSelect: PropTypes.bool,
   allowProviderWildcard: PropTypes.bool,
+  modelGroups: PropTypes.arrayOf(PropTypes.shape({ id: PropTypes.string.isRequired, name: PropTypes.string.isRequired })),
+  modelGroupsError: PropTypes.string,
 };

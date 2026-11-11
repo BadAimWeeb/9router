@@ -30,7 +30,7 @@ import { getUsageForProvider } from "open-sse/services/usage.js";
 import { refreshAndUpdateCredentials } from "@/app/api/usage/[connectionId]/route.js";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { USAGE_APIKEY_PROVIDERS, resolveProviderId } from "@/shared/constants/providers";
-import { extractClientApiKey } from "@/sse/services/keyAccess.js";
+import { expandKeyAccessAllow, extractClientApiKey } from "@/sse/services/keyAccess.js";
 import { getModelInfo, getComboModels } from "@/sse/services/model.js";
 import {
   QUOTA_ACCESS_NONE,
@@ -54,8 +54,7 @@ const lower = (s) => String(s).toLowerCase();
 async function getAllowedProvidersForKey(keyRecord) {
   if (!keyRecord?.access?.restricted) return null;
   const allowed = new Set();
-  for (const entry of keyRecord.access.allow || []) {
-    if (typeof entry !== "string" || !entry) continue;
+  for (const entry of await expandKeyAccessAllow(keyRecord.access.allow)) {
     const comboModels = await getComboModels(entry);
     if (comboModels) {
       for (const member of comboModels) {
