@@ -1,3 +1,27 @@
+# v0.5.117-beta.5 (2026-11-10)
+
+## Features
+- Manage API-key model groups in their own dashboard tab and select them from the model picker. Linked keys track group edits; expand a group to keep independent entries.
+- Allow API keys to grant individual models, combos, or all models of a provider via `provider/*`; select provider groups or batches in the key editor. Provider grants include future models but do not grant combos.
+- Configure per-model upstream TTS codecs and convert PCM to WAV or MP3.
+- Configure PCM sample rates and channels in model settings; prevent raw PCM responses.
+- Support Codex speech MP3 output and base64 MP3 JSON responses.
+- Display OpenRouter account credits and applicable budgets alongside the daily request limit.
+- Add experimental Codex text-to-speech using subscription realtime audio.
+- Support custom OpenRouter text-to-speech and speech-to-text models.
+- Display OpenRouter effective budget and free-model daily request limits.
+- Expose reasoning effort options in the models API.
+- Add provider realtime websocket routing and categorize realtime models.
+
+## Fixes
+- Display the realtime websocket endpoint in the dashboard.
+- Retry stalled initial Codex streams and handle realtime turn completion.
+- Default the Codex speech tester to the correct model and show supported voices.
+- Support OpenRouter models requiring the dedicated speech endpoint.
+- Use client-compatible `-1m` suffixes for Codex extended-context models.
+- Update Antigravity's default search model to Gemini 3.8 Flash and resolve its upstream model alias.
+- Preserve reported cache token usage across response conversions and streaming diagnostics.
+
 # v0.5.116 (2026-11-08)
 
 ## Features
