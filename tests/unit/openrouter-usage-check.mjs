@@ -1,15 +1,18 @@
 import assert from "node:assert/strict";
+import { mock } from "node:test";
+
+// Run: node --experimental-test-module-mocks tests/unit/openrouter-usage-check.mjs
 
 let body = { data: { effective_budget: { scope: "member", limit_usd: 50, spend_usd: 40 }, free_model_daily_requests: { used: 2, limit: 50 } } };
 let status = 200;
 let creditsStatus = 200;
 let credits = { total_credits: 100, total_usage: 25 };
-globalThis.fetch = async (url, options) => {
+mock.module("../../open-sse/utils/proxyFetch.js", { namedExports: { proxyAwareFetch: async (url, options) => {
   assert.equal(options.headers.Authorization, "Bearer test-key");
   if (url === "https://openrouter.ai/api/v1/credits") return Response.json({ data: credits }, { status: creditsStatus });
   assert.equal(url, "https://openrouter.ai/api/v1/key");
   return new Response(JSON.stringify(body), { status });
-};
+} } });
 const { getUsageForProvider } = await import("../../open-sse/services/usage.js");
 const connection = { provider: "openrouter", apiKey: "test-key" };
 let result = await getUsageForProvider(connection);
