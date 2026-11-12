@@ -4,7 +4,7 @@ import { decodeCodexAudio } from "./codexTtsAudio.js";
 
 let active = 0;
 // ponytail: experimental, unrouted single-turn transport; integrate only after live protocol verification.
-export async function synthesizeCodexTts({ input, voice, credentials, signal: clientSignal, proxyOptions }) {
+export async function synthesizeCodexTts({ input, voice, credentials, signal: clientSignal, proxyOptions, onUsage }) {
   if (["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"].some((key) => process.env[key]?.trim()) || (proxyOptions && (proxyOptions.enabled || proxyOptions.connectionProxyEnabled || proxyOptions.strictProxy || proxyOptions.vercelRelayUrl || proxyOptions.url || proxyOptions.connectionProxyUrl || proxyOptions.proxyPoolId || proxyOptions.source === "error"))) throw new Error("Codex realtime media cannot use a proxy");
   const signal = AbortSignal.any([...(clientSignal ? [clientSignal] : []), AbortSignal.timeout(90000)]);
   const cleanup = new AbortController();
@@ -20,7 +20,7 @@ export async function synthesizeCodexTts({ input, voice, credentials, signal: cl
     await connection.peer.setRemoteDescription({ type: "answer", sdp: call.sdp });
     await waitForCodexChannel(connection.channel, signal);
     connection.startAudio();
-    const turn = waitForCodexTtsTurn(connection.channel, turnSignal);
+    const turn = waitForCodexTtsTurn(connection.channel, turnSignal, onUsage);
     try {
       sendCodexTtsText(connection.channel, input);
     } catch (error) {

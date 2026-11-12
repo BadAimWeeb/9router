@@ -161,6 +161,8 @@ export async function handleChat(request, clientRawRequest = null) {
             models: m,
             routerModel: comboCfg.routerModel,
             log,
+            apiKey,
+            endpoint: new URL(request.url).pathname,
           })
         : null,
     });
@@ -256,6 +258,8 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
               models: m,
               routerModel: comboCfg.routerModel,
               log,
+              apiKey,
+              endpoint: new URL(request.url).pathname,
             })
           : null,
       });

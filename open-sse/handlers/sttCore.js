@@ -5,6 +5,7 @@ import { transcribeCodex } from "./codexStt.js";
 import { PROVIDER_MODELS, PROVIDER_ID_TO_ALIAS } from "../config/providerModels.js";
 import { HTTP_STATUS } from "../config/runtimeConfig.js";
 import { proxyAwareFetch } from "../utils/proxyFetch.js";
+import { extractUsage } from "../utils/usageTracking.js";
 
 // Next.js polyfills globalThis.FormData with a Web API implementation that lacks
 // internal undici symbols. When passed to fetch(), undici cannot serialize it as
@@ -114,7 +115,7 @@ async function transcribeNvidia(cfg, file, model, token) {
 }
 
 // Gemini: generateContent with inline_data audio + transcription prompt
-async function transcribeGemini(cfg, file, model, token, formData) {
+async function transcribeGemini(cfg, file, model, token, formData, onUsage) {
   const buf = await file.arrayBuffer();
   const b64 = Buffer.from(buf).toString("base64");
   const mime = resolveAudioContentType(file);
@@ -135,6 +136,7 @@ async function transcribeGemini(cfg, file, model, token, formData) {
   });
   if (!res.ok) return upstreamError(res);
   const data = await res.json();
+  onUsage?.(extractUsage(data));
   const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text).filter(Boolean).join("") || "";
   return jsonResponse({ text });
 }
@@ -241,7 +243,7 @@ async function transcribeHuggingFace(cfg, file, model, token) {
 }
 
 // Default: OpenAI/Groq/Whisper-compatible multipart
-async function transcribeOpenAICompatible(cfg, file, model, token, formData) {
+async function transcribeOpenAICompatible(cfg, file, model, token, formData, onUsage) {
   const fd = new FormData();
   fd.append("file", file, file.name || "audio.wav");
   fd.append("model", model);
@@ -253,6 +255,12 @@ async function transcribeOpenAICompatible(cfg, file, model, token, formData) {
   if (!res.ok) return upstreamError(res);
   const ct = res.headers.get("content-type") || "application/json";
   const txt = await res.text();
+  if (onUsage && ct.includes("json")) {
+    try {
+      const data = JSON.parse(txt);
+      onUsage(extractUsage(data) || data.usage);
+    } catch {}
+  }
   return { success: true, response: new Response(txt, { status: 200, headers: { "Content-Type": ct, "Access-Control-Allow-Origin": "*" } }) };
 }
 
@@ -285,7 +293,7 @@ function resolveModelTransport(provider, model) {
  * it in the app layer; built-ins fall back to the registry entry marker).
  * @returns {Promise<{success, response, status?, error?}>}
  */
-export async function handleSttCore({ provider, model, formData, credentials, sttConfig, transport, signal, proxyOptions }) {
+export async function handleSttCore({ provider, model, formData, credentials, sttConfig, transport, signal, proxyOptions, onUsage }) {
   const file = formData.get("file");
   if (!file) return createErrorResult(HTTP_STATUS.BAD_REQUEST, "Missing required field: file");
 
@@ -294,7 +302,7 @@ export async function handleSttCore({ provider, model, formData, credentials, st
 
   // OAuth transcription uses a fixed ChatGPT endpoint; never honor connection URL overrides.
   if (provider === "codex" && cfg.format === "codex-transcribe") {
-    return transcribeCodex({ formData, credentials, signal, proxyOptions });
+    return transcribeCodex({ formData, credentials, signal, proxyOptions, onUsage });
   }
 
   // Per-connection endpoint override. Registry entries carry a fixed baseUrl,
@@ -333,12 +341,13 @@ export async function handleSttCore({ provider, model, formData, credentials, st
         }, proxyOptions);
         if (!res.ok) return upstreamError(res);
         const data = await res.json();
+        onUsage?.(extractUsage(data));
         const text = data?.choices?.[0]?.message?.content;
         if (typeof text !== "string") return createErrorResult(502, "OpenRouter returned no transcript");
         return fmt === "text" ? textResponse(text) : jsonResponse({ text });
       }
       case "gemini-live": {
-        const live = await transcribeGeminiLive({ cfg, file, model, token, formData, mimeType: resolveAudioContentType(file) });
+        const live = await transcribeGeminiLive({ cfg, file, model, token, formData, mimeType: resolveAudioContentType(file), onUsage });
         // response_format parity with the OpenAI-compatible transport: default
         // envelope stays {text}; verbose_json adds segments mapped from the
         // Live API's incremental inputTranscription deltas. Those frames carry
@@ -358,9 +367,9 @@ export async function handleSttCore({ provider, model, formData, credentials, st
       case "assemblyai":      return await transcribeAssemblyAI(cfg, file, model, token);
       case "nvidia-asr":      return await transcribeNvidia(cfg, file, model, token);
       case "huggingface-asr": return await transcribeHuggingFace(cfg, file, model, token);
-      case "gemini-stt":      return await transcribeGemini(cfg, file, model, token, formData);
+      case "gemini-stt":      return await transcribeGemini(cfg, file, model, token, formData, onUsage);
       case "elevenlabs-stt":  return await transcribeElevenLabs(cfg, file, model, token, formData);
-      default:                return await transcribeOpenAICompatible(cfg, file, model, token, formData);
+      default:                return await transcribeOpenAICompatible(cfg, file, model, token, formData, onUsage);
     }
   } catch (err) {
     return createErrorResult(err.status || HTTP_STATUS.BAD_GATEWAY, err.message || "STT request failed");
