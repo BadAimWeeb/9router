@@ -1,14 +1,19 @@
 import assert from "node:assert/strict";
+import { mock } from "node:test";
+
+// Run: node --experimental-test-module-mocks tests/unit/openrouter-audio-check.mjs
 
 let request;
 let dedicatedSpeech = false;
-globalThis.fetch = async (url, options) => {
+const fetchMock = async (url, options) => {
   request = { url, ...options, body: JSON.parse(options.body) };
   if (dedicatedSpeech && url.endsWith("/chat/completions")) return Response.json({ error: { message: "Use the /api/v1/audio/speech endpoint instead." } }, { status: 400 });
   if (url.endsWith("/audio/speech")) return new Response("audio");
   if (request.body.stream) return new Response('data: {"choices":[{"delta":{"audio":{"data":"aGk="}}}]}\n\ndata: [DONE]\n\n');
   return Response.json({ choices: [{ message: { content: "Hello" } }] });
 };
+globalThis.fetch = fetchMock;
+mock.module("../../open-sse/utils/proxyFetch.js", { namedExports: { proxyAwareFetch: fetchMock } });
 const { handleSttCore } = await import("../../open-sse/handlers/sttCore.js");
 const { handleTtsCore } = await import("../../open-sse/handlers/ttsCore.js");
 const { PROVIDER_MEDIA } = await import("../../open-sse/providers/index.js");
