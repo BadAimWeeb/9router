@@ -4,6 +4,7 @@ const fs = require("fs");
 const crypto = require("crypto");
 const { pathToFileURL } = require("url");
 const realtimeWebSocket = require("./realtime/realtime-websocket.js");
+const webLoginWebSocket = require("./realtime/web-login-websocket.cjs");
 
 const origCreate = http.createServer.bind(http);
 
@@ -86,6 +87,7 @@ http.createServer = (...args) => {
     const [req, socket, head] = eventArgs;
     if (event === "upgrade" && String(req.headers.upgrade || "").toLowerCase() === "websocket") {
       try {
+        if (webLoginWebSocket(server, req, socket, head)) return true;
         if (realtimeWebSocket(server, req, socket, head)) return true;
       } catch { socket.destroy(); return true; }
     }
