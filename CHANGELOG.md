@@ -1,6 +1,11 @@
-# Unreleased
+# v0.5.120-beta.6 (2026-11-12)
 
+## Upstream
+- Rebase third-party and local changes onto decolua/9router `1855aa44` (v0.5.119 second drop), preserving the upstream Synthetic provider, Xiaomi Token Plan catalog refresh, MiniMax desktop-lease usage, and the explicit custom Model type selector. Replace the superseded v0.5.120-beta.5 release commit.
+
+## Features
 - Add per-API-key opt-in chat prompt/request/response debugging retention, disabled for new and existing keys. Captures stay in process memory for at most one hour, bounded by observability record/JSON limits, and appear in Usage request details only for signed-in dashboard users. Enable “Retain prompts for debugging” on the API Endpoint page, or send `promptRetentionEnabled: true` when creating/updating a key. Enabling a key is sufficient; global observability/logging flags never grant consent.
+- **Antigravity**: add Gemini 4 Hydrogen in low/medium/high tiers. Hydrogen carries a fourth thinking level above high ("Extra thinking", wire enum `xhigh`) — one more than Carbon/Argon's three — so the level picker advertises low|medium|high|xhigh and a requested `xhigh` reaches the upstream `thinkingLevel` instead of being clamped to the Gemini 3 enum; the usage quota list tracks the new tiers.
 - Disabling retention, pausing/deleting a key, importing keys, or restarting clears captured payloads; in-flight requests cannot restore data after revocation. Disk request details now hold metadata only; startup strips legacy request-detail payloads. Automatic unbounded `logs/` request dumps are removed. Previously created log files, external backups, and copies already downloaded by dashboard users are not erased.
 
 # v0.5.120-beta.4 (2026-11-11)
