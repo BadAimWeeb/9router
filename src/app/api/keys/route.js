@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getApiKeys, createApiKey } from "@/lib/localDb";
+import { getApiKeys, createApiKey, updateApiKey } from "@/lib/localDb";
 import { getConsistentMachineId } from "@/shared/utils/machineId";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +19,10 @@ export async function GET() {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { name } = body;
+    const { name, promptRetentionEnabled } = body;
+    if (Object.hasOwn(body, "promptRetentionEnabled") && typeof promptRetentionEnabled !== "boolean") {
+      return NextResponse.json({ error: "promptRetentionEnabled must be a boolean" }, { status: 400 });
+    }
 
     if (!name) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
@@ -27,13 +30,17 @@ export async function POST(request) {
 
     // Always get machineId from server
     const machineId = await getConsistentMachineId();
-    const apiKey = await createApiKey(name, machineId);
+    let apiKey = await createApiKey(name, machineId);
+    if (promptRetentionEnabled === true) {
+      apiKey = await updateApiKey(apiKey.id, { promptRetentionEnabled });
+    }
 
     return NextResponse.json({
       key: apiKey.key,
       name: apiKey.name,
       id: apiKey.id,
       machineId: apiKey.machineId,
+      promptRetentionEnabled: apiKey.promptRetentionEnabled,
     }, { status: 201 });
   } catch (error) {
     console.log("Error creating key:", error);

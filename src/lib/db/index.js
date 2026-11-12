@@ -4,6 +4,7 @@ import { stringifyJson, parseJson } from "./helpers/jsonCol.js";
 import { keyAccessFromColumns, keyAccessToColumns, validateKeyAccessInput } from "@/shared/utils/keyAccess.js";
 import { KEY_ACCESS_UNRESTRICTED } from "@/shared/constants/keyAccess.js";
 import { normalizeQuotaAccess } from "@/shared/utils/quotaAccess.js";
+import { purgeRetainedPrompts } from "@/lib/promptRetention.js";
 
 // Settings
 export {
@@ -80,7 +81,7 @@ export async function exportDb() {
     providerConnections: db.all(`SELECT * FROM providerConnections`).map((r) => ({ ...parseJson(r.data, {}), id: r.id, provider: r.provider, authType: r.authType, name: r.name, email: r.email, priority: r.priority, isActive: r.isActive === 1, createdAt: r.createdAt, updatedAt: r.updatedAt })),
     providerNodes: db.all(`SELECT * FROM providerNodes`).map((r) => ({ ...parseJson(r.data, {}), id: r.id, type: r.type, name: r.name, createdAt: r.createdAt, updatedAt: r.updatedAt })),
     proxyPools: db.all(`SELECT * FROM proxyPools`).map((r) => ({ ...parseJson(r.data, {}), id: r.id, isActive: r.isActive === 1, testStatus: r.testStatus, createdAt: r.createdAt, updatedAt: r.updatedAt })),
-    apiKeys: db.all(`SELECT * FROM apiKeys`).map((r) => ({ id: r.id, key: r.key, name: r.name, machineId: r.machineId, isActive: r.isActive === 1, createdAt: r.createdAt, access: keyAccessFromColumns(r.accessRestricted, r.accessAllow), quotaAccess: normalizeQuotaAccess(r.quotaAccess) })),
+    apiKeys: db.all(`SELECT * FROM apiKeys`).map((r) => ({ id: r.id, key: r.key, name: r.name, machineId: r.machineId, isActive: r.isActive === 1, promptRetentionEnabled: r.promptRetentionEnabled === 1 || r.promptRetentionEnabled === true, createdAt: r.createdAt, access: keyAccessFromColumns(r.accessRestricted, r.accessAllow), quotaAccess: normalizeQuotaAccess(r.quotaAccess) })),
     combos: db.all(`SELECT * FROM combos`).map((r) => ({ id: r.id, name: r.name, kind: r.kind, models: parseJson(r.models, []), createdAt: r.createdAt, updatedAt: r.updatedAt })),
     modelAliases: {},
     customModels: [],
@@ -139,6 +140,9 @@ export async function importDb(payload) {
       );
     }
     for (const k of payload.apiKeys || []) {
+      if (Object.hasOwn(k, "promptRetentionEnabled") && typeof k.promptRetentionEnabled !== "boolean") {
+        throw new Error(`apiKeys ${k.id}: promptRetentionEnabled must be a boolean`);
+      }
       // Per-key access: a backup without `access` (older version) restores
       // unrestricted, exactly as before; a malformed `access` is refused.
       let access = KEY_ACCESS_UNRESTRICTED;
@@ -149,8 +153,8 @@ export async function importDb(payload) {
       }
       const cols = keyAccessToColumns(access);
       db.run(
-        `INSERT OR REPLACE INTO apiKeys(id, key, name, machineId, isActive, createdAt, accessRestricted, accessAllow, quotaAccess) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [k.id, k.key, k.name || null, k.machineId || null, k.isActive === false ? 0 : 1, k.createdAt || new Date().toISOString(), cols.accessRestricted, cols.accessAllow, normalizeQuotaAccess(k.quotaAccess)]
+        `INSERT OR REPLACE INTO apiKeys(id, key, name, machineId, isActive, createdAt, accessRestricted, accessAllow, quotaAccess, promptRetentionEnabled) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [k.id, k.key, k.name || null, k.machineId || null, k.isActive === false ? 0 : 1, k.createdAt || new Date().toISOString(), cols.accessRestricted, cols.accessAllow, normalizeQuotaAccess(k.quotaAccess), k.promptRetentionEnabled === true ? 1 : 0]
       );
     }
     for (const c of payload.combos || []) {
@@ -173,6 +177,7 @@ export async function importDb(payload) {
       db.run(`INSERT OR REPLACE INTO kv(scope, key, value) VALUES('pricing', ?, ?)`, [provider, stringifyJson(models || {})]);
     }
   });
+  purgeRetainedPrompts();
 
   return await exportDb();
 }

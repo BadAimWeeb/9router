@@ -22,6 +22,7 @@ import KeyAccessControls from "./components/KeyAccessControls";
 import QuotaAccessControls from "./components/QuotaAccessControls";
 export default function APIPageClient({ machineId }) {
   const [keys, setKeys] = useState([]);
+  const [promptRetentionStatus, setPromptRetentionStatus] = useState({});
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newKeyName, setNewKeyName] = useState("");
@@ -714,6 +715,30 @@ export default function APIPageClient({ machineId }) {
     }
   };
 
+  const handleUpdatePromptRetention = async (id, promptRetentionEnabled) => {
+    setPromptRetentionStatus(prev => ({ ...prev, [id]: { saving: true, error: null } }));
+    try {
+      const res = await fetch(`/api/keys/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ promptRetentionEnabled }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || typeof data.key?.promptRetentionEnabled !== "boolean") {
+        throw new Error(data.error || "Failed to update prompt retention");
+      }
+      setKeys(prev => prev.map(key => key.id === id
+        ? { ...key, promptRetentionEnabled: data.key.promptRetentionEnabled }
+        : key));
+      setPromptRetentionStatus(prev => ({ ...prev, [id]: { saving: false, error: null } }));
+    } catch (error) {
+      setPromptRetentionStatus(prev => ({
+        ...prev,
+        [id]: { saving: false, error: error.message || "Failed to update prompt retention" },
+      }));
+    }
+  };
+
   const maskKey = (fullKey) => {
     if (!fullKey || fullKey.length <= 10) return fullKey || "";
     return fullKey.slice(0, 6) + "•".repeat(fullKey.length - 10) + fullKey.slice(-4);
@@ -1076,6 +1101,27 @@ export default function APIPageClient({ machineId }) {
                   {key.isActive === false && (
                     <p className="text-xs text-orange-500 mt-1">Paused</p>
                   )}
+                  <div className="mt-3">
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={key.promptRetentionEnabled === true}
+                        disabled={promptRetentionStatus[key.id]?.saving === true}
+                        onChange={(event) => handleUpdatePromptRetention(key.id, event.target.checked)}
+                        aria-describedby={`prompt-retention-description-${key.id}`}
+                        className="accent-primary"
+                      />
+                      Retain prompts for debugging
+                      {promptRetentionStatus[key.id]?.saving && <span className="text-xs text-text-muted" role="status">Saving…</span>}
+                    </label>
+                    <p id={`prompt-retention-description-${key.id}`} className="text-xs text-text-muted mt-1">
+                      For this key only, prompts and request/response debugging data are held in memory for up to one hour,
+                      cleared on restart or when disabled, and visible to signed-in dashboard users in Usage request details. This data may contain sensitive information.
+                    </p>
+                    {promptRetentionStatus[key.id]?.error && (
+                      <p role="alert" className="text-xs text-red-500 mt-1">{promptRetentionStatus[key.id].error}</p>
+                    )}
+                  </div>
                   <QuotaAccessControls
                     apiKey={key}
                     onChange={(quotaAccess) => handleUpdateQuotaAccess(key.id, quotaAccess)}
