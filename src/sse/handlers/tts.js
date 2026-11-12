@@ -13,6 +13,7 @@ import { handleComboChat } from "open-sse/services/combo.js";
 import * as log from "../utils/logger.js";
 import { checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy.js";
+import { runSpeechInference } from "./speechUsage.js";
 
 // Derived from providers.js: any TTS provider not noAuth requires stored credentials
 const CREDENTIALED_PROVIDERS = new Set(
@@ -37,8 +38,9 @@ export async function handleTts(request) {
   log.request("POST", `${url.pathname} | ${modelStr} | format=${responseFormat}${language ? ` | lang=${language}` : ""}`);
 
   const settings = await getSettings();
+  const apiKey = extractApiKey(request);
+  const usageContext = { apiKey, endpoint: url.pathname };
   if (settings.requireApiKey) {
-    const apiKey = extractApiKey(request);
     if (!apiKey) return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Missing API key");
     const valid = await isValidApiKey(apiKey);
     if (!valid) return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Invalid API key");
@@ -61,7 +63,7 @@ export async function handleTts(request) {
     return handleComboChat({
       body,
       models: comboModels,
-      handleSingleModel: (b, m) => handleSingleModelTts(b, m, responseFormat, language, style, request.signal),
+      handleSingleModel: (b, m) => handleSingleModelTts(b, m, responseFormat, language, style, request.signal, usageContext),
       log,
       comboName: modelStr,
       comboStrategy,
@@ -69,10 +71,10 @@ export async function handleTts(request) {
     });
   }
 
-  return handleSingleModelTts(body, modelStr, responseFormat, language, style, request.signal);
+  return handleSingleModelTts(body, modelStr, responseFormat, language, style, request.signal, usageContext);
 }
 
-async function handleSingleModelTts(body, modelStr, responseFormat, language, style, signal) {
+async function handleSingleModelTts(body, modelStr, responseFormat, language, style, signal, usageContext) {
   const modelInfo = await getModelInfo(modelStr);
   if (!modelInfo.provider) return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid model format");
 
@@ -85,7 +87,7 @@ async function handleSingleModelTts(body, modelStr, responseFormat, language, st
 
   // noAuth providers — no credential needed
   if (!CREDENTIALED_PROVIDERS.has(provider)) {
-    const result = await handleTtsCore({ provider, model, input: body.input, responseFormat, upstreamFormat, language, style, voice: body.voice, signal });
+    const result = await runSpeechInference(handleTtsCore, { provider, model, input: body.input, responseFormat, upstreamFormat, language, style, voice: body.voice, signal }, usageContext);
     if (result.success) return result.response;
     return errorResponse(result.status || HTTP_STATUS.BAD_GATEWAY, result.error || "TTS failed");
   }
@@ -106,7 +108,7 @@ async function handleSingleModelTts(body, modelStr, responseFormat, language, st
       }
       if (excludeConnectionIds.size === 0) {
         if (provider === "ollama-local") {
-          const result = await handleTtsCore({ provider, model, input: body.input, credentials: null, responseFormat, upstreamFormat, language, style, signal });
+          const result = await runSpeechInference(handleTtsCore, { provider, model, input: body.input, credentials: null, responseFormat, upstreamFormat, language, style, signal }, usageContext);
           if (result.success) return result.response;
           return errorResponse(result.status || HTTP_STATUS.BAD_GATEWAY, result.error || "TTS failed");
         }
@@ -122,11 +124,11 @@ async function handleSingleModelTts(body, modelStr, responseFormat, language, st
       if (provider === "codex") credentials = await checkAndRefreshToken(provider, credentials);
       const proxyOptions = provider === "codex" ? await resolveConnectionProxyConfig(credentials._connection?.providerSpecificData || credentials.providerSpecificData) : undefined;
       const args = { provider, model, input: body.input, credentials, responseFormat, upstreamFormat, language, style, voice: body.voice, signal, proxyOptions };
-      result = await handleTtsCore(args);
+      result = await runSpeechInference(handleTtsCore, args, usageContext);
       if (provider === "codex" && result.status === 401 && credentials.refreshToken && !signal.aborted) {
         const previous = credentials.accessToken;
         credentials = await checkAndRefreshToken(provider, credentials, { force: true });
-        if (credentials.accessToken !== previous) result = await handleTtsCore({ ...args, credentials });
+        if (credentials.accessToken !== previous) result = await runSpeechInference(handleTtsCore, { ...args, credentials }, usageContext);
       }
       if (result.success && provider === "codex") await clearAccountError(credentials.connectionId, credentials, model);
     } catch {
