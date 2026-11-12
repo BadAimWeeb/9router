@@ -1,7 +1,8 @@
-# Unreleased
+# v0.5.120-beta.5 (2026-11-12)
 
 - Add per-API-key opt-in chat prompt/request/response debugging retention, disabled for new and existing keys. Captures stay in process memory for at most one hour, bounded by observability record/JSON limits, and appear in Usage request details only for signed-in dashboard users. Enable “Retain prompts for debugging” on the API Endpoint page, or send `promptRetentionEnabled: true` when creating/updating a key. Enabling a key is sufficient; global observability/logging flags never grant consent.
 - Disabling retention, pausing/deleting a key, importing keys, or restarting clears captured payloads; in-flight requests cannot restore data after revocation. Disk request details now hold metadata only; startup strips legacy request-detail payloads. Automatic unbounded `logs/` request dumps are removed. Previously created log files, external backups, and copies already downloaded by dashboard users are not erased.
+- Add an OpenRouter-style structured prompt viewer to Usage request details: message list with role filters and search, token-per-message histogram, attachment chips for images/audio/files, expandable tool call/result cards, requesting-key attribution, and an Original/Client/Translated toggle including a pristine pre-mutation request snapshot for opted-in keys.
 
 # v0.5.120-beta.4 (2026-11-11)
 
