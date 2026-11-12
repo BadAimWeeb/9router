@@ -312,7 +312,7 @@ const PROVIDER_MODELS_CONFIG = {
     url: "https://api.anthropic.com/v1/models",
     method: "GET",
     headers: {
-      "Anthropic-Version": "2023-06-01",
+      "Anthropic-Version": "2026-10-21",
       "Content-Type": "application/json"
     },
     authHeader: "x-api-key",
