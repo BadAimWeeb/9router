@@ -112,6 +112,11 @@ export class DefaultExecutor extends BaseExecutor {
       if (this.config.quirks?.dropClientMetadata) {
         delete transformed.client_metadata;
       }
+      if (this.provider === "anthropic") {
+        delete transformed.temperature;
+        delete transformed.top_p;
+        delete transformed.top_k;
+      }
       stripUnsupportedParams(this.provider, model, transformed);
     }
 

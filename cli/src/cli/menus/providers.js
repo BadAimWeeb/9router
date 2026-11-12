@@ -107,9 +107,15 @@ const PROVIDER_MODELS = {
     { id: "o1-mini" },
   ],
   anthropic: [
-    { id: "claude-sonnet-4-20250514" },
-    { id: "claude-opus-4-20250514" },
-    { id: "claude-3-5-sonnet-20241022" },
+    { id: "claude-fable-5-2" },
+    { id: "claude-opus-5-5" },
+    { id: "claude-sonnet-5-5" },
+    { id: "claude-haiku-5-5" },
+    { id: "claude-opus-4-8" },
+    { id: "claude-opus-4-7" },
+    { id: "claude-opus-4-6" },
+    { id: "claude-sonnet-4-6" },
+    { id: "claude-haiku-4-5-20251001" },
   ],
   gemini: [
     { id: "gemini-3.8-flash" },

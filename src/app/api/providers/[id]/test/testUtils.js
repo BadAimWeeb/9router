@@ -652,8 +652,8 @@ async function testApiKeyConnection(connection, effectiveProxy = null) {
       case "anthropic": {
         const res = await fetchWithConnectionProxy("https://api.anthropic.com/v1/messages", {
           method: "POST",
-          headers: { "x-api-key": connection.apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-          body: JSON.stringify({ model: "claude-3-haiku-20240307", max_tokens: 1, messages: [{ role: "user", content: "test" }] }),
+          headers: { "x-api-key": connection.apiKey, "anthropic-version": "2026-10-21", "content-type": "application/json" },
+          body: JSON.stringify({ model: "claude-haiku-5-5", max_tokens: 1, messages: [{ role: "user", content: "test" }] }),
         }, effectiveProxy);
         const valid = res.status !== 401;
         return { valid, error: valid ? null : "Invalid API key" };
