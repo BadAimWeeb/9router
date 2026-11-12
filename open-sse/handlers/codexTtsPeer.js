@@ -47,7 +47,7 @@ export function orderCodexAudioPackets(packets) {
 }
 
 // ponytail: one bounded turn; correlate turn identifiers before supporting session reuse.
-export function waitForCodexTtsTurn(channel, signal) {
+export function waitForCodexTtsTurn(channel, signal, onUsage) {
   return new Promise((resolve, reject) => {
     let started = false;
     let finished = false;
@@ -68,6 +68,7 @@ export function waitForCodexTtsTurn(channel, signal) {
       let event;
       try { event = JSON.parse(raw.toString()); } catch { return finish(new Error("Invalid Codex event")); }
       if (!event || typeof event !== "object" || Array.isArray(event)) return finish(new Error("Invalid Codex event"));
+      if (event.response?.usage) onUsage?.(event.response.usage);
       if (event.type === "error" || event.type === "response.cancelled" || (event.type === "response.done" && ["failed", "cancelled", "canceled", "incomplete"].includes(event.response?.status))) return finish(new Error("Codex speech turn failed"));
       if (event.type === "turn.created" || event.type === "response.created") started = true;
       // Audio is carried separately from control events; callers must drain the media track after completion.

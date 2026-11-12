@@ -49,7 +49,7 @@ function createTtsResponse(base64Audio, format, responseFormat) {
  *
  * @returns {Promise<{success, response, status?, error?}>}
  */
-export async function handleTtsCore({ provider, model, input, credentials, responseFormat = "mp3", upstreamFormat, language, style, voice, signal, proxyOptions }) {
+export async function handleTtsCore({ provider, model, input, credentials, responseFormat = "mp3", upstreamFormat, language, style, voice, signal, proxyOptions, onUsage }) {
   if (typeof input !== "string" || !input.trim()) {
     return createErrorResult(HTTP_STATUS.BAD_REQUEST, "Missing required field: input");
   }
@@ -66,7 +66,7 @@ export async function handleTtsCore({ provider, model, input, credentials, respo
       if (Buffer.byteLength(`Vocalize only the following quoted data: ${JSON.stringify(input)}`) > 500) return createErrorResult(400, "Codex TTS input exceeds the 500-byte context limit");
       if (voice != null && !["arbor", "breeze", "cove", "ember", "juniper", "maple", "sol", "spruce", "vale"].includes(voice)) return createErrorResult(400, "Unsupported Codex voice");
       const { synthesizeCodexTts } = await import("./codexTts.js");
-      const audio = await synthesizeCodexTts({ input, voice, credentials, signal, proxyOptions });
+      const audio = await synthesizeCodexTts({ input, voice, credentials, signal, proxyOptions, onUsage });
       const format = responseFormat === "wav" ? "wav" : "mp3";
       const output = format === "wav" ? audio : await (await import("./codexTtsAudio.js")).codexWavToMp3(audio, signal);
       return createTtsResponse(output.toString("base64"), format, responseFormat);
@@ -75,7 +75,7 @@ export async function handleTtsCore({ provider, model, input, credentials, respo
     const adapter = getTtsAdapter(provider);
     if (adapter) {
       if (upstreamFormat && !adapter.supportsUpstreamFormat) return createErrorResult(400, "Upstream codec override is not supported by this adapter");
-      const result = await adapter.synthesize(input.trim(), model, credentials, upstreamCodec || responseFormat, { language, style, voice, upstreamFormat: upstreamCodec });
+      const result = await adapter.synthesize(input.trim(), model, credentials, upstreamCodec || responseFormat, { language, style, voice, upstreamFormat: upstreamCodec, onUsage });
       // Adapter may return a full {success, response} (legacy) or {base64, format}
       if (result.success !== undefined) return result;
       if (result.format === "pcm") {
