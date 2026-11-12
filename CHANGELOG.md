@@ -1,3 +1,28 @@
+# v0.5.120-beta.3 (2026-11-11)
+
+## Upstream
+- Rebase third-party and local changes onto decolua/9router `54a88d04` (v0.5.119), preserving upstream transport, live model discovery, thinking-level metadata, and stream sentinel fixes. Replace the superseded v0.5.117-beta.6 release commit.
+
+## Features
+- Log in to web-cookie providers inside Docker through an embedded Chromium viewer, backed by Xvfb and DevTools screencasting with mouse, keyboard, paste, and popup-tab controls. Viewer capabilities expire when login finishes or is cancelled.
+- Add a Browser workspace for independent, resumable browser sessions and persisted profile creation, renaming, and deletion, with an accessible icon toolbar, popup tabs, an address bar, and viewport-fitted streaming.
+- Manage linked API-key model groups and grant individual models, combos, or all models of a provider via `provider/*`.
+- Configure per-model upstream TTS codecs, PCM sample rates and channels; convert PCM to WAV or MP3 instead of returning raw PCM.
+- Add experimental Codex speech synthesis, MP3 and base64 MP3 output, provider realtime websocket routing, and realtime model categories.
+- Support custom OpenRouter speech models and display account credits, applicable budgets, and daily request limits.
+- Expose supported reasoning effort metadata alongside upstream `thinking_levels`.
+
+## Fixes
+- Record TTS, STT, image/video generation, embeddings, and System One decisions (including smart-router evaluations) in usage even when no token counts are returned; retain account/API-key attribution and failed attempts without counting video status polling as generation.
+- Fix Muse Web browser startup and session refresh rejecting `__Host-` cookies with “Invalid cookie fields” by preserving their host-only domain.
+- Display the realtime websocket endpoint, retry stalled initial Codex streams, and handle realtime turn completion.
+- Use the correct Codex speech tester defaults and supported voices.
+- Support OpenRouter models requiring the dedicated speech endpoint.
+- Use client-compatible `-1m` suffixes for Codex extended-context models.
+- Resolve Antigravity search model aliases and default to Gemini 3.8 Flash.
+- Preserve reported cache token usage across response conversions and streaming diagnostics.
+- Update OpenRouter smoke checks to mock the proxy transport boundary now that upstream fetch uses its own undici instance.
+
 # v0.5.119 (2026-11-11)
 
 ## Features
