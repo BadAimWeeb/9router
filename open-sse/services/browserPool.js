@@ -27,6 +27,7 @@ import { loadRuntimeDep } from "./lazyRuntime.js";
 import { connectObscuraBrowser } from "./obscura.js";
 import { ensureVirtualDisplay, stopVirtualDisplay } from "./virtualDisplay.js";
 import { launchChromiumWithFallback } from "../executors/browserExecutableCheck.js";
+import { toPlaywrightCookies } from "../utils/webCookieAuth.js";
 
 export const DEFAULT_USER_AGENT =
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36";
@@ -241,28 +242,7 @@ async function launchBrowser(options) {
 }
 
 function parseCookieString(raw, domain) {
-  return raw
-    .split(";")
-    .map((p) => p.trim())
-    .filter(Boolean)
-    .map((pair) => {
-      const eq = pair.indexOf("=");
-      if (eq < 0) return null;
-      const name = pair.slice(0, eq).trim();
-      const value = pair.slice(eq + 1).trim();
-      if (!name || !value) return null;
-      return {
-        name,
-        value,
-        domain: domain.startsWith(".") ? domain : `.${domain}`,
-        path: "/",
-        expires: -1,
-        httpOnly: false,
-        secure: true,
-        sameSite: "Lax",
-      };
-    })
-    .filter(Boolean);
+  return toPlaywrightCookies(raw, domain.startsWith(".") ? domain : `.${domain}`);
 }
 
 // Clear a key from the pending-creation map once its promise settles, counting failures.
