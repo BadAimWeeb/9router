@@ -1,5 +1,6 @@
 // OpenRouter TTS — via chat completions + audio modality (SSE stream)
 import { PROVIDER_MEDIA } from "../../providers/index.js";
+import { extractUsage } from "../../utils/usageTracking.js";
 
 const TTS_CFG = PROVIDER_MEDIA["openrouter"]?.ttsConfig || {};
 
@@ -75,6 +76,7 @@ export default {
         if (!line.startsWith("data: ") || line === "data: [DONE]") continue;
         try {
           const json = JSON.parse(line.slice(6));
+          options.onUsage?.(extractUsage(json));
           const audioData = json.choices?.[0]?.delta?.audio?.data;
           if (audioData) chunks.push(audioData);
         } catch {}

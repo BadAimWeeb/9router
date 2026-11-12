@@ -12,6 +12,7 @@ import { AI_PROVIDERS } from "@/shared/constants/providers";
 import * as log from "../utils/logger.js";
 import { checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy.js";
+import { runSpeechInference } from "./speechUsage.js";
 
 // Providers requiring credentials for STT
 const CREDENTIALED_PROVIDERS = new Set(
@@ -49,8 +50,9 @@ export async function handleStt(request) {
   log.request("POST", `/v1/audio/transcriptions | ${modelStr}`);
 
   const settings = await getSettings();
+  const apiKey = extractApiKey(request);
+  const usageContext = { apiKey, endpoint: new URL(request.url).pathname };
   if (settings.requireApiKey) {
-    const apiKey = extractApiKey(request);
     if (!apiKey) return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Missing API key");
     const valid = await isValidApiKey(apiKey);
     if (!valid) return errorResponse(HTTP_STATUS.UNAUTHORIZED, "Invalid API key");
@@ -75,7 +77,7 @@ export async function handleStt(request) {
 
   // noAuth providers
   if (!CREDENTIALED_PROVIDERS.has(provider)) {
-    const result = await handleSttCore({ provider, model, formData, sttConfig: AI_PROVIDERS[provider]?.sttConfig, transport: modelTransport });
+    const result = await runSpeechInference(handleSttCore, { provider, model, formData, sttConfig: AI_PROVIDERS[provider]?.sttConfig, transport: modelTransport, signal: request.signal }, usageContext);
     if (result.success) return result.response;
     return errorResponse(result.status || HTTP_STATUS.BAD_GATEWAY, result.error || "STT failed");
   }
@@ -108,11 +110,11 @@ export async function handleStt(request) {
         ? await resolveConnectionProxyConfig(credentials._connection?.providerSpecificData || credentials.providerSpecificData)
         : undefined;
       const args = { provider, model, formData, credentials, sttConfig: AI_PROVIDERS[provider]?.sttConfig, transport: modelTransport, signal: request.signal, proxyOptions };
-      result = await handleSttCore(args);
+      result = await runSpeechInference(handleSttCore, args, usageContext);
       if (isCodex && result.status === 401 && credentials.refreshToken && !request.signal.aborted) {
         const previous = credentials.accessToken;
         credentials = await checkAndRefreshToken(provider, credentials, { force: true });
-        if (credentials.accessToken !== previous) result = await handleSttCore({ ...args, credentials });
+        if (credentials.accessToken !== previous) result = await runSpeechInference(handleSttCore, { ...args, credentials }, usageContext);
       }
       if (result.success) {
         if (isCodex) await clearAccountError(credentials.connectionId, credentials, model);
