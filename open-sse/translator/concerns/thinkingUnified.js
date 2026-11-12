@@ -180,9 +180,13 @@ function normalizeOpenAILevel(level, supportedLevels) {
   return "xhigh";
 }
 
-function toGeminiThinkingLevel(cfg) {
+function toGeminiThinkingLevel(cfg, supportedLevels = null) {
   const raw = cfg.mode === "auto" ? "high" : (toLevel(cfg) || "high");
-  return effortToThinkingLevel(raw);
+  const mapped = effortToThinkingLevel(raw);
+  // Models that advertise a native "xhigh" tier (Gemini 4 Hydrogen) keep it —
+  // effortToThinkingLevel clamps xhigh→high for the gemini-3 enum only.
+  if (raw === "xhigh" && mapped === "high" && supportedLevels?.includes("xhigh")) return "xhigh";
+  return mapped;
 }
 
 function toKimiReasoningEffort(cfg) {
@@ -199,6 +203,7 @@ const GEMINI_LEVEL_OUTPUT_FLOOR = {
   low: 8192,
   medium: 16384,
   high: 65535,
+  xhigh: 65535,
 };
 
 function geminiBudgetOutputFloor(budget) {
@@ -317,7 +322,7 @@ function applyFormat(fmt, body, cfg, caps, supportedLevels, display, model = "",
       break;
     }
     case "gemini-level": {
-      let level = none ? "minimal" : toGeminiThinkingLevel(eff);
+      let level = none ? "minimal" : toGeminiThinkingLevel(eff, supportedLevels);
       // Models without a "minimal" tier (Gemini 4) reject it with 400 — clamp to the lowest supported level.
       const lowest = supportedLevels?.find((l) => l !== "none");
       if (supportedLevels?.length && lowest && !supportedLevels.includes(level)) level = lowest;
