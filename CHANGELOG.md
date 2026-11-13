@@ -1,4 +1,11 @@
-# v0.5.120-beta.6 (2026-11-12)
+# v0.5.120-beta.8 (2026-11-13)
+
+## Features
+- **Dashboard**: hide the 9Remote and 9English sidebar promo buttons via environment — `NINEROUTER_HIDE_PROMOS=true` hides both, `NINEROUTER_HIDE_9REMOTE=true` / `NINEROUTER_HIDE_9ENGLISH=true` hide one; the flags surface through `/api/settings`.
+- **Endpoint**: restructure the API keys management list — key names gain an inline rename editor (edit icon, Enter saves, Escape cancels; `PUT /api/keys/[id]` accepts a validated name) and delete refreshes the list and consent panel in place.
+- **Usage**: log prompt-retention consent changes with attribution (key name + masked key, never the raw key) — dashboard toggles, key creation, pause/delete revocations, database imports, and server restarts all land in a 200-entry activity ring shown as a collapsible panel on the API Endpoint page and mirrored to the server log as `[PromptRetention]` lines.
+
+# v0.5.120-beta.7 (2026-11-12)
 
 ## Upstream
 - Rebase third-party and local changes onto decolua/9router `1855aa44` (v0.5.119 second drop), preserving the upstream Synthetic provider, Xiaomi Token Plan catalog refresh, MiniMax desktop-lease usage, and the explicit custom Model type selector. Replace the superseded v0.5.120-beta.5 release commit.
