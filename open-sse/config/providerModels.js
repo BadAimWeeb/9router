@@ -100,14 +100,16 @@ export function getModelUpstreamId(aliasOrId, modelId, clientBody = null) {
   const baseId = suffix ? modelId.slice(0, sufMatch.index).trim() : modelId;
   const models = PROVIDER_MODELS[aliasOrId];
 
-  // Resolve requested thinking level from suffix or client request body
+  // Resolve requested thinking level from suffix or client request body.
+  // "max" has no tier of its own — it rides the tier ladder like any other level and
+  // clamps to the nearest existing tier below it (xhigh for Hydrogen, high otherwise).
   const rawSuffix = suffix ? suffix.slice(1, -1).trim().toLowerCase() : "";
-  let tier = rawSuffix === "xhigh" || rawSuffix === "max" ? "high" : rawSuffix === "minimal" ? "low" : rawSuffix;
+  let tier = rawSuffix === "minimal" ? "low" : rawSuffix;
   if (!tier && clientBody && typeof clientBody === "object") {
     const rawEffort = clientBody.reasoning_effort || clientBody.output_config?.effort || (typeof clientBody.reasoning === "object" ? clientBody.reasoning?.effort : null);
     if (typeof rawEffort === "string" && rawEffort) {
       const v = rawEffort.toLowerCase().trim();
-      tier = v === "xhigh" || v === "max" ? "high" : v === "minimal" ? "low" : v;
+      tier = v === "minimal" ? "low" : v;
     } else if (clientBody.thinking && typeof clientBody.thinking === "object") {
       const b = Number(clientBody.thinking.budget_tokens);
       if (Number.isFinite(b) && b > 0) {
@@ -116,15 +118,30 @@ export function getModelUpstreamId(aliasOrId, modelId, clientBody = null) {
     }
   }
 
-  // Look for tiered variant first if a tier was requested (e.g. gemini-3.8-flash-high)
-  const tieredId = tier ? `${baseId}-${tier}` : null;
+  // Look for tiered variant first if a tier was requested (e.g. gemini-3.8-flash-high).
+  // A tier the registry has no entry for (xhigh on Carbon/Argon) clamps to the nearest
+  // existing tier BELOW it — the upstream id must name a real tier, and the thinking
+  // level sent on the wire is clamped separately by thinkingUnified. When the base id
+  // is itself a tier alias (e.g. gemini-4-carbon-medium), the family tiers live one
+  // dash above, so clamp against the stripped family root instead of the alias.
+  const TIER_LADDER = ["minimal", "low", "medium", "high", "xhigh", "max"];
+  const tierAliasMatch = typeof baseId === "string" ? baseId.match(/^(.*)-(low|medium|high|xhigh|max)$/) : null;
+  const familyRoot = tierAliasMatch ? tierAliasMatch[1] : null;
+  const tierRoot = familyRoot && findModel(models, familyRoot, aliasOrId) ? familyRoot : baseId;
+  let effectiveTier = tier;
+  if (tier) {
+    const idx = TIER_LADDER.indexOf(tier);
+    effectiveTier = idx === -1 ? tier
+      : TIER_LADDER.slice(0, idx + 1).reverse().find((t) => findModel(models, `${tierRoot}-${t}`, aliasOrId)) || tier;
+  }
+  const tieredId = effectiveTier ? `${tierRoot}-${effectiveTier}` : null;
   const found = (tieredId && findModel(models, tieredId, aliasOrId)) || findModel(models, baseId, aliasOrId);
   const resolvedId = found?.upstreamModelId || found?.id;
   if (resolvedId) {
     const presetMatch = resolvedId.match(/\([^()]+\)\s*$/);
     const presetSuffix = presetMatch?.[0] || "";
     const resolvedBase = presetSuffix ? resolvedId.slice(0, presetMatch.index).trim() : resolvedId;
-    return resolvedBase + (suffix || (presetSuffix && tier ? `(${tier})` : presetSuffix));
+    return resolvedBase + (suffix || (presetSuffix && effectiveTier ? `(${effectiveTier})` : presetSuffix));
   }
   if (aliasOrId === "cx" && typeof baseId === "string" && baseId.endsWith(CODEX_REVIEW_SUFFIX)) {
     return baseId.slice(0, -CODEX_REVIEW_SUFFIX.length) + suffix;

@@ -5,7 +5,7 @@
 import { getCapabilitiesForModel } from "../../providers/capabilities.js";
 import { getThinkingLevels } from "../../providers/thinkingLevels.js";
 import { PROVIDERS } from "../../providers/index.js";
-import { LEVEL_TO_BUDGET, budgetToLevel, effortToBudget, effortToThinkingLevel } from "./thinking.js";
+import { EFFORT_LEVELS, LEVEL_TO_BUDGET, budgetToLevel, effortToBudget, effortToThinkingLevel } from "./thinking.js";
 
 // Map a target wire-format to its native thinking format (when capability has none).
 const FORMAT_TO_NATIVE = {
@@ -180,13 +180,11 @@ function normalizeOpenAILevel(level, supportedLevels) {
   return "xhigh";
 }
 
-function toGeminiThinkingLevel(cfg, supportedLevels = null) {
+function toGeminiThinkingLevel(cfg) {
   const raw = cfg.mode === "auto" ? "high" : (toLevel(cfg) || "high");
-  const mapped = effortToThinkingLevel(raw);
-  // Models that advertise a native "xhigh" tier (Gemini 4 Hydrogen) keep it —
-  // effortToThinkingLevel clamps xhigh→high for the gemini-3 enum only.
-  if (raw === "xhigh" && mapped === "high" && supportedLevels?.includes("xhigh")) return "xhigh";
-  return mapped;
+  // xhigh passes through as its own level — models that lack the tier clamp it
+  // downstream (the gemini-level case clamps to the lowest supported level).
+  return effortToThinkingLevel(raw);
 }
 
 function toKimiReasoningEffort(cfg) {
@@ -322,10 +320,16 @@ function applyFormat(fmt, body, cfg, caps, supportedLevels, display, model = "",
       break;
     }
     case "gemini-level": {
-      let level = none ? "minimal" : toGeminiThinkingLevel(eff, supportedLevels);
-      // Models without a "minimal" tier (Gemini 4) reject it with 400 — clamp to the lowest supported level.
-      const lowest = supportedLevels?.find((l) => l !== "none");
-      if (supportedLevels?.length && lowest && !supportedLevels.includes(level)) level = lowest;
+      let level = none ? "minimal" : toGeminiThinkingLevel(eff);
+      // Models without a "minimal" tier (Gemini 4) reject it with 400 — clamp to the
+      // nearest supported level at or below the ask (never above: don't spend more
+      // thinking than the client requested, e.g. xhigh → high on Carbon/Argon).
+      const ladder = EFFORT_LEVELS;
+      const supported = (supportedLevels || []).filter((l) => l !== "none");
+      if (supported.length && !supported.includes(level)) {
+        const idx = ladder.indexOf(level);
+        level = [...supported].reverse().find((l) => idx === -1 || ladder.indexOf(l) < idx) || supported[0];
+      }
       setGeminiThinking(body, { thinkingLevel: level, includeThoughts: level !== "minimal" });
       ensureGeminiOutputFloor(body, geminiLevelOutputFloor(level), caps);
       break;

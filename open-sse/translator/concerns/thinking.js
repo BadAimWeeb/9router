@@ -23,12 +23,14 @@ export function effortToBudget(effort) {
   return LEVEL_TO_BUDGET[String(effort).toLowerCase()];
 }
 
-// OpenAI reasoning_effort → Gemini thinkingLevel (gemini-3 enum: minimal|low|medium|high).
+// OpenAI reasoning_effort → Gemini thinkingLevel (enum: minimal|low|medium|high|xhigh).
+// xhigh is a first-class level: models without the tier reject/clamp it themselves,
+// and the gemini-level writer clamps unsupported levels to the model's lowest.
 // Gemini 3 cannot fully disable thinking; "none"/"off" map to "minimal".
 export function effortToThinkingLevel(effort) {
   const e = String(effort).toLowerCase().trim();
   if (e === "none" || e === "off") return "minimal";
-  if (e === "xhigh" || e === "max") return "high";
+  if (e === "max") return "high";
   return e;
 }
 

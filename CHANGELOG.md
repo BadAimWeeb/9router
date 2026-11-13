@@ -1,3 +1,8 @@
+# v0.5.120-beta.7 (2026-11-12)
+
+## Fixes
+- **Antigravity**: treat `xhigh` as a normal thinking level across the tier machinery instead of a Hydrogen-only special case — the upstream-id resolver clamps a tier the registry lacks (xhigh on Carbon/Argon, max everywhere) to the nearest real tier below it via the family tier ladder, `effortToThinkingLevel` passes xhigh through on the gemini enum, and the gemini-level writer clamps unsupported levels to the nearest-below tier instead of always the lowest. Hydrogen keeps the only xhigh tier; add the bare `gemini-4-hydrogen` alias (resolving to medium) mirroring `gemini-4-carbon`, so family-root tier clamping works there too.
+
 # v0.5.120-beta.6 (2026-11-12)
 
 ## Upstream
