@@ -38,8 +38,8 @@ export async function handleEmbeddingsCore({
   if (!input) {
     return createErrorResult(HTTP_STATUS.BAD_REQUEST, "Missing required field: input");
   }
-  if (typeof input !== "string" && !Array.isArray(input)) {
-    return createErrorResult(HTTP_STATUS.BAD_REQUEST, "input must be a string or array of strings");
+  if (typeof input !== "string" && !Array.isArray(input) && !(provider === "pollinations" && typeof input === "object" && input !== null)) {
+    return createErrorResult(HTTP_STATUS.BAD_REQUEST, "input must be a string or array (or a Pollinations multimodal object)");
   }
 
   const adapter = getEmbeddingAdapter(provider);
@@ -65,11 +65,12 @@ export async function handleEmbeddingsCore({
     url = adapter.buildUrl(model, credentials, ctx);
     headers = adapter.buildHeaders(credentials, ctx);
     requestBody = adapter.buildBody(model, {
+      ...body,
       input,
       encoding_format: body.encoding_format || "float",
       dimensions: body.dimensions,
       ...(inputType ? { input_type: inputType } : {}),
-    });
+    }, ctx);
   } catch (error) {
     log?.debug?.("EMBEDDINGS", `Request build failed: ${error.message}`);
     return createErrorResult(HTTP_STATUS.BAD_REQUEST, `[${provider}/${model}] ${error.message}`);
@@ -141,9 +142,13 @@ export async function handleEmbeddingsCore({
     return createErrorResult(HTTP_STATUS.BAD_GATEWAY, `Invalid JSON response from ${provider}`);
   }
 
+  let normalized;
+  try {
+    normalized = adapter.normalize(responseBody, model, ctx);
+  } catch (error) {
+    return createErrorResult(HTTP_STATUS.BAD_GATEWAY, `Invalid embedding response from ${provider}: ${error.message}`);
+  }
   if (onRequestSuccess) await onRequestSuccess();
-
-  const normalized = adapter.normalize(responseBody, model);
   log?.debug?.("EMBEDDINGS", `Success | usage=${JSON.stringify(normalized.usage || {})}`);
 
   return {
