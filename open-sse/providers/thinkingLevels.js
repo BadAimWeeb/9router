@@ -43,8 +43,11 @@ const CLAUDE_NO_XHIGH = ["none", "low", "medium", "high", "max"];
 const AG_CLAUDE_5_5_LEVELS = ["low", "medium", "high", "max"];
 // Model-name pattern overrides (glob, first match wins) — more precise than format default.
 const PATTERN_THINKING = [
+  { provider: "cohere", pattern: "*", levels: ["none", "high"] },
   // Gemini 4 Neon & Hydrogen support xhigh in addition to low/medium/high (no minimal/none).
   { pattern: "*gemini-4-neon*", levels: ["low", "medium", "high", "xhigh"] },
+  // Gemini 4 Hydrogen adds "xhigh" on top of low/medium/high (default high); "minimal" is
+  // still a 400 ("Thinking level MINIMAL is not supported"). Must precede the family entry.
   { pattern: "*gemini-4-hydrogen*", levels: ["low", "medium", "high", "xhigh"] },
   // Gemini 4 (Argon, Carbon) rejects "minimal" with 400 — LOW is the floor; cannot disable thinking.
   { pattern: "*gemini-4*", levels: ["low", "medium", "high"] },
