@@ -1,4 +1,4 @@
-# Unreleased
+# v0.5.120-beta.12 (2026-11-16)
 
 ## Fixes
 - **Codex images**: resize individual inline and fetched images exceeding 30,000 32×32 patches before forwarding. Preserve aspect ratio and requested detail; images within the limit remain unchanged. Install Sharp directly for server and CLI image processing.
