@@ -19,12 +19,15 @@ const DEFAULT_RESPONSE_EXAMPLE = `{
   "usage": { "prompt_tokens": 9, "total_tokens": 9 }
 }`;
 
-export function EmbeddingExampleCard({ providerId, customAlias }) {
+export function EmbeddingExampleCard({ providerId, customAlias, catalogModels }) {
   const isCustom = isCustomEmbeddingProvider(providerId);
   const providerAlias = isCustom ? (customAlias || providerId) : getProviderAlias(providerId);
-  const embeddingModels = isCustom ? [] : getModelsByProviderId(providerId).filter((m) => getModelKind(m) === "embedding");
+  const embeddingModels = isCustom ? [] : (catalogModels ?? getModelsByProviderId(providerId)).filter((m) => getModelKind(m) === "embedding");
 
   const [selectedModel, setSelectedModel] = useState(embeddingModels[0]?.id ?? "");
+  useEffect(() => {
+    setSelectedModel((current) => embeddingModels.some((m) => m.id === current) ? current : embeddingModels[0]?.id || "");
+  }, [catalogModels]);
   const selectedModelObj = embeddingModels.find((m) => m.id === selectedModel);
   // Models that declare extra params (e.g. NVIDIA's asymmetric embedding models
   // require `input_type`) — the row only shows for those.

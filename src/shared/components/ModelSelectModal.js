@@ -13,7 +13,6 @@ import { OAUTH_PROVIDERS, APIKEY_PROVIDERS, FREE_PROVIDERS, FREE_TIER_PROVIDERS,
 import { parseSearchQuery, matchesSearch } from "@/shared/utils/modelSearchFilter";
 import { getDeactivatedProviderIds } from "@/shared/utils/connectionStatus";
 import { NO_AUTH_PROVIDER_IDS, LIVE_CATALOG_PROVIDERS, liveModelCaps } from "@/shared/utils/selectableModels";
-
 // Provider order: OAuth first, then Free Tier, then API Key (matches dashboard/providers)
 const PROVIDER_ORDER = [
   ...Object.keys(OAUTH_PROVIDERS),
@@ -25,6 +24,7 @@ const PROVIDER_ORDER = [
 // Providers with per-account live catalogs live in selectableModels so the Combo
 // picker, the CLI-tool cards and /api/providers/[id]/models cannot drift apart
 // (commandcode models were unreachable from the cards for exactly that reason).
+// Static registry stays as fallback when live fetch fails or is empty.
 
 // Fetch a provider's account-scoped catalog for every active connection and merge
 // the results. Entries collapse by model id on purpose: two connections of the
@@ -160,7 +160,8 @@ export default function ModelSelectModal({
   const zedModels = useLiveProviderModels(isOpen, zedConnectionIds, "Zed");
   const claudeModels = useLiveProviderModels(isOpen, claudeConnectionIds, "Claude");
   const commandcodeModels = useLiveProviderModels(isOpen, commandcodeConnectionIds, "CommandCode");
-
+  const cohereModels = useLiveProviderModels(isOpen, liveConnectionIdsByProvider.cohere, "Cohere");
+  const pollinationsModels = useLiveProviderModels(isOpen, liveConnectionIdsByProvider.pollinations, "Pollinations");
 
   const fetchCombos = async () => {
     try {
@@ -314,7 +315,7 @@ export default function ModelSelectModal({
         return;
       }
 
-      if (providerInfo.passthroughModels) {
+      if (providerInfo.passthroughModels && !["cohere", "pollinations"].includes(providerId)) {
         const aliasModels = Object.entries(modelAliases)
           .filter(([, fullModel]) => fullModel.startsWith(`${alias}/`))
           .map(([aliasName, fullModel]) => ({
@@ -421,7 +422,7 @@ export default function ModelSelectModal({
           hasModels: mergedModels.length > 0,
         };
       } else {
-        const liveModels = liveModelsByProvider[providerId] || [];
+        const liveModels = ({ ...liveModelsByProvider, cohere: cohereModels, pollinations: pollinationsModels })[providerId] || [];
         const hardcodedModels = liveModels.length > 0
           ? liveModels
           : getModelsByProviderId(providerId);
@@ -515,7 +516,7 @@ export default function ModelSelectModal({
     });
 
     return groups;
-  }, [filteredActiveProviders, modelAliases, allProviders, providerNodes, customModels, disabledModels, kindFilter, effectiveConnections, deactivatedProviderIds, cursorModels, clineModels, clinepassModels, zedModels, claudeModels, commandcodeModels]);
+  }, [filteredActiveProviders, modelAliases, allProviders, providerNodes, customModels, disabledModels, kindFilter, effectiveConnections, deactivatedProviderIds, cursorModels, clineModels, clinepassModels, zedModels, claudeModels, commandcodeModels, cohereModels, pollinationsModels]);
 
   // Parse search query into structured query (regex, positive tokens, negative tokens)
   const parsedQuery = useMemo(() => parseSearchQuery(searchQuery), [searchQuery]);
@@ -546,7 +547,7 @@ export default function ModelSelectModal({
       let models = group.models;
       // Filter by input-modality capability (vision/pdf/audioInput/videoInput).
       if (capFilter) {
-        models = models.filter((m) => getCaps(m.value)?.[capFilter] === true);
+        models = models.filter((m) => (m.capabilities || getCaps(m.value))?.[capFilter] === true);
         if (models.length === 0) return;
       }
       if (!parsedQuery.isEmpty) {
