@@ -1,5 +1,17 @@
 # Unreleased
 
+Next local beta: version set by the next release commit.
+
+## Features
+- **Free-tier providers**: add Cohere chat, multimodal embeddings and transcription using evaluation API keys; add Pollinations chat, embeddings, images/edits, speech, transcription, decisions and realtime, with native video job routing when an eligible model is available. Populate supported models automatically from the live catalogs in provider pages, selectors and `/v1/models`; exclude deprecated/ineligible Cohere models and Pollinations paid-only models. Free-tier allowances, key permissions and account budgets still apply.
+
+## Fixes
+- **Pollinations pricing**: automatically list only explicitly zero-priced models; Quest-eligible or unknown-price models are opt-in suggestions, never automatically enabled.
+- **Pollinations**: recognize currency-only Pollen pricing as charge-free, so `stealth/glyph-cluster` appears automatically; missing pricing and nonzero charges remain suggestions.
+- **Model discovery**: load Pollinations' public catalog without requiring a saved connection, populate Cohere/Pollinations media model cards from live discovery, preserve successful empty catalogs and display discovery failures.
+- **Thinking**: map an `ultra` effort to `high` on Gemini level-based models without an `xhigh` tier, instead of letting it fall through to the lowest level.
+
+
 ## Fixes
 - **Usage**: prompt-retention captures no longer break on large Anthropic `/v1/messages` requests. Retained payloads use a dedicated cap (`OBSERVABILITY_RETENTION_MAX_JSON_SIZE`, default 10MB) instead of the 5KB disk-observability limit, so Original/Client/Translated views stay renderable for real Claude Code bodies, and a client disconnect mid-stream now finalizes the capture instead of leaving the response placeholder empty forever.
 - **Usage**: Original and Client views now show the system prompt. Anthropic `/v1/messages` carries it in a top-level `system` field (string or content-block array) that the message extractor ignored; it is prepended as the first system-role message, along with Responses `instructions` and Gemini `systemInstruction`. OpenAI-wire bodies (system already inside `messages[]`) are unchanged.
