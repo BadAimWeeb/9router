@@ -1,4 +1,4 @@
-# Unreleased
+# v0.5.120-beta.13 (2026-11-17)
 
 ## Fixes
 - **Antigravity**: strip/rewrite Claude Code prompt fingerprints that trigger fake 429 responses (PR #5733); use the live per-account catalog and hide disabled/internal models in provider model discovery (PR #5734).
