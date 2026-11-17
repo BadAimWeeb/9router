@@ -265,6 +265,12 @@ export const PROVIDER_CAPABILITIES = {
     "mistral-large-4": { vision: true, contextWindow: 1048576 },
     "mistral-large-4-0": { vision: true, contextWindow: 1048576 },
   },
+  // Public API docs: https://developers.openai.com/api/docs/models/gpt-6.2-sol
+  // and /gpt-6.2-astra. These limits are not a Codex OAuth guarantee.
+  openai: {
+    "gpt-6.2-sol": { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1050000, maxOutput: 128000 },
+    "gpt-6.2-astra": { vision: true, reasoning: true, thinkingFormat: "openai", thinkingCanDisable: false, contextWindow: 1050000, maxOutput: 128000 },
+  },
   cohere: Object.fromEntries(cohere.models.map(model => [model.id, {
     ...model.capabilities,
     thinkingFormat: "openai",
