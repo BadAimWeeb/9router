@@ -1,4 +1,4 @@
-# Unreleased
+# v0.5.120-beta.15 (2026-11-18)
 
 ## Fixes
 - **Codex GPT-6.2**: use the Responses Lite request shape and supported thinking levels for Sol; add Sol/Astra `-1m` catalog variants using the existing context convention and Codex-specific capability limits (adapted from PR #5741).
