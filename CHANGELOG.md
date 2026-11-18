@@ -1,4 +1,4 @@
-# Unreleased
+# v0.5.120-beta.16 (2026-11-18)
 
 ## Features
 - **Antigravity**: add Gemini 4 Neon with low/medium/high/xhigh thinking and model-specific pricing; keep account availability controlled by live model discovery.
