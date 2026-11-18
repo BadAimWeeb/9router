@@ -346,6 +346,8 @@ export const PROVIDER_CAPABILITIES = {
     "claude-haiku-5-5": { vision: true, reasoning: true, search: true, thinkingFormat: "commandcode", thinkingEffortSupported: true, contextWindow: 1000000, maxOutput: 128000 },
   },
   "codex": {
+    "gpt-6.2-sol":               { vision: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 272000, maxOutput: 128000 },
+    "gpt-6.2-astra":             { vision: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 272000, maxOutput: 128000 },
     "gpt-6-astra":               { vision: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 272000, maxOutput: 128000 },
     "gpt-6-sol":                 { vision: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 272000, maxOutput: 128000 },
     // Without its own entry gpt-6.1-sol fell through to *gpt-6* (1.05M), overstating
@@ -355,6 +357,8 @@ export const PROVIDER_CAPABILITIES = {
     // (the API model is 1.05M; Codex caps the default window like its siblings).
     "gpt-6.1-terra":             { vision: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 500000, maxOutput: 128000 },
     "gpt-6-luna":                { vision: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 272000, maxOutput: 128000 },
+    "gpt-6.2-sol-1m":           CODEX_EXTENDED_CAPS,
+    "gpt-6.2-astra-1m":         CODEX_EXTENDED_CAPS,
     "gpt-6-astra-1m":           CODEX_EXTENDED_CAPS,
     "gpt-6-sol-1m":             CODEX_EXTENDED_CAPS,
     "gpt-6-luna-1m":            CODEX_EXTENDED_CAPS,

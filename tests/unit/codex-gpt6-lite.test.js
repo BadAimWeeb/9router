@@ -11,7 +11,7 @@ const credentials = { connectionId: "fixture", accessToken: "fixture-token" };
 afterEach(() => vi.restoreAllMocks());
 
 describe("Codex GPT-6 Sol/Luna transport", () => {
-  it.each(["gpt-6.1-sol", "gpt-6-sol", "gpt-6-luna"])("lists %s with Codex capabilities", (model) => {
+  it.each(["gpt-6.2-sol", "gpt-6.1-sol", "gpt-6-sol", "gpt-6-luna"])("lists %s with Codex capabilities", (model) => {
     const entry = getModelsByProviderId("codex").find((item) => item.id === model);
     expect(entry?.responsesLite).toBe(true);
     expect(entry?.thinkingLevels).toEqual(["low", "medium", "high", "xhigh", "max"]);
@@ -42,12 +42,12 @@ describe("Codex GPT-6 Sol/Luna transport", () => {
     expect(getPricingForModel("codex", "gpt-6.1-terra")).toMatchObject({ input: 1, cached: 0.05, cache_creation: 1.25, output: 5 });
   });
 
-  it("sends gpt-6.1-terra with the Lite header and shape", () => {
+  it.each(["gpt-6.1-terra", "gpt-6.2-sol", "gpt-6.2-sol-1m"])("sends %s with the Lite header and shape", (model) => {
     const executor = new CodexExecutor();
-    const body = executor.transformRequest("gpt-6.1-terra", {
-      model: "gpt-6.1-terra", input: "hello", reasoning: { effort: "ultra" },
+    const body = executor.transformRequest(model, {
+      model, input: "hello", reasoning: { effort: "ultra" },
     }, true, credentials);
-    const headers = executor.buildHeaders(credentials, true, null, "gpt-6.1-terra");
+    const headers = executor.buildHeaders(credentials, true, null, model);
 
     expect(headers["x-openai-internal-codex-responses-lite"]).toBe("true");
     expect(body.reasoning).toEqual({ effort: "max", context: "all_turns" });
@@ -232,14 +232,14 @@ describe("Codex GPT-6 Sol/Luna transport", () => {
     expect(body.reasoning.context).toBe("all_turns");
   });
 
-  it("keeps the legacy transport for other models", () => {
+  it.each(["gpt-5.6-terra", "gpt-6.2-astra", "gpt-6.2-astra-1m"])("keeps the full transport for %s", (model) => {
     const executor = new CodexExecutor();
-    const body = executor.transformRequest("gpt-5.6-terra", { model: "gpt-5.6-terra", input: "hello" }, true, credentials);
+    const body = executor.transformRequest(model, { model, input: "hello" }, true, credentials);
 
     expect(body.instructions).toBeTruthy();
     expect(body.input[0].type).not.toBe("additional_tools");
     expect(body.reasoning.context).toBeUndefined();
-    expect(executor.buildHeaders(credentials, true, null, "gpt-5.6-terra")["x-openai-internal-codex-responses-lite"]).toBeUndefined();
+    expect(executor.buildHeaders(credentials, true, null, model)["x-openai-internal-codex-responses-lite"]).toBeUndefined();
     expect(getThinkingLevels("codex", "gpt-6-astra")).toContain("none");
     expect(executor.buildHeaders(credentials, true, null, "gpt-6-astra")["x-openai-internal-codex-responses-lite"]).toBeUndefined();
   });

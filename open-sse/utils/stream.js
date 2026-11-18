@@ -451,8 +451,10 @@ export function createSSEStream(options = {}) {
               item.usage = filterUsageForFormat(estimated, sourceFormat); // Filter + already has buffer
               state.usage = estimated;
             } else if (sourceFormat !== FORMATS.CLAUDE && state.finishReason && isFinishChunk && state.usage) {
-              // Add buffer and filter usage for client (but keep original in state.usage for logging)
-              const buffered = addBufferToUsage(state.usage);
+              // Buffer client usage, never the cache-exclusive logging state.
+              const clientUsage = targetFormat === FORMATS.CLAUDE && sourceFormat === FORMATS.OPENAI
+                && item.usage?.prompt_tokens !== undefined ? item.usage : state.usage;
+              const buffered = addBufferToUsage(clientUsage);
               item.usage = filterUsageForFormat(buffered, sourceFormat);
             }
 

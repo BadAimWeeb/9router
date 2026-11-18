@@ -35,11 +35,11 @@ export function claudeToOpenAIResponse(chunk, state) {
         const inputTokens = typeof startUsage.input_tokens === "number" ? startUsage.input_tokens : 0;
         const cacheReadTokens = typeof startUsage.cache_read_input_tokens === "number" ? startUsage.cache_read_input_tokens : 0;
         const cacheCreationTokens = typeof startUsage.cache_creation_input_tokens === "number" ? startUsage.cache_creation_input_tokens : 0;
-        const promptTokens = inputTokens + cacheReadTokens + cacheCreationTokens;
+        // Keep logging usage cache-exclusive; only client usage folds in cache.
         state.usage = {
-          prompt_tokens: promptTokens,
+          prompt_tokens: inputTokens,
           completion_tokens: 0,
-          total_tokens: promptTokens,
+          total_tokens: inputTokens,
           input_tokens: inputTokens,
           output_tokens: 0
         };
@@ -126,13 +126,10 @@ export function claudeToOpenAIResponse(chunk, state) {
         const cacheReadTokens = typeof chunk.usage.cache_read_input_tokens === "number" ? chunk.usage.cache_read_input_tokens : (prev.cache_read_input_tokens || 0);
         const cacheCreationTokens = typeof chunk.usage.cache_creation_input_tokens === "number" ? chunk.usage.cache_creation_input_tokens : (prev.cache_creation_input_tokens || 0);
 
-        // prompt_tokens = input_tokens + cache_read + cache_creation (all prompt-side tokens)
-        const promptTokens = inputTokens + cacheReadTokens + cacheCreationTokens;
-
         state.usage = {
-          prompt_tokens: promptTokens,
+          prompt_tokens: inputTokens,
           completion_tokens: outputTokens,
-          total_tokens: promptTokens + outputTokens,
+          total_tokens: inputTokens + outputTokens,
           input_tokens: inputTokens,
           output_tokens: outputTokens
         };
@@ -171,15 +168,11 @@ export function claudeToOpenAIResponse(chunk, state) {
 
     case "message_stop": {
       if (!state.finishReasonSent) {
-        const finishReason = state.finishReason || (state.toolCalls?.size > 0 ? OPENAI_FINISH.TOOL_CALLS : OPENAI_FINISH.STOP);
-        const usageObj = (state.usage && typeof state.usage === 'object') ? {
-          usage: {
-            prompt_tokens: state.usage.input_tokens || 0,
-            completion_tokens: state.usage.output_tokens || 0,
-            total_tokens: (state.usage.input_tokens || 0) + (state.usage.output_tokens || 0)
-          }
+        state.finishReason = state.finishReason || (state.toolCalls?.size > 0 ? OPENAI_FINISH.TOOL_CALLS : OPENAI_FINISH.STOP);
+        const usageObj = (state.usage && typeof state.usage === "object") ? {
+          usage: toOpenAIUsage(state.usage, "claude")
         } : {};
-        results.push({ ...createChunk(state, {}, finishReason), ...usageObj });
+        results.push({ ...createChunk(state, {}, state.finishReason), ...usageObj });
         state.finishReasonSent = true;
       }
       break;

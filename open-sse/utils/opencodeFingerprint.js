@@ -30,8 +30,15 @@ export const OPENCODE_FINGERPRINT_TOOLS = ["read", "shell"];
 // (decolua/9router#5319). Only `tools[]` is inspected — history and system
 // prompt are not — so the declaration travels under an alias and the caller's
 // name is restored on the way back, like a fingerprint-name collision.
-export const GATED_TOOL_NAME_RE = /terminal/i;
+export const GATED_TOOL_NAME_RE = /terminal|reportfindings|exec_command/i;
 const GATED_TOOL_ALIAS = "run_command";
+
+// Conceal the common member of the ReportFindings and exec_command pair gates.
+// Schema gates match any listed property, not a complete schema mismatch.
+const GATED_NAME_SCHEMA_RULES = [
+  { re: /^edit$/i, props: ["old_string", "new_string"], alias: "file_edit" },
+  { re: /^Read$/, props: ["file_path"], alias: "file_read" },
+];
 
 // Verbatim from the OpenCode v2.0.26 CLI. Upstream compares description and
 // parameters, so do not reword or reformat these.
@@ -92,6 +99,16 @@ function chatFunctionOf(tool) {
   return fn && typeof fn === "object" && !Array.isArray(fn) ? fn : null;
 }
 
+function gatedNameSchemaAlias(tool, name) {
+  const def = chatFunctionOf(tool) || tool;
+  const props = def?.parameters?.properties;
+  if (!props || typeof props !== "object" || Array.isArray(props)) return "";
+  for (const rule of GATED_NAME_SCHEMA_RULES) {
+    if (rule.re.test(name) && rule.props.some((prop) => Object.hasOwn(props, prop))) return rule.alias;
+  }
+  return "";
+}
+
 /** True when `tool` already carries OpenCode's exact definition for `key`. */
 function isFingerprintDefinition(tool, key) {
   const def = tool && (chatFunctionOf(tool) || tool);
@@ -143,9 +160,8 @@ function withFingerprintDefinition(tool, key) {
 /**
  * Keep caller tools on the fingerprint names whenever their arguments can carry
  * OpenCode's, and move the remaining ones off them so the exact definitions can
- * be appended without a duplicate name. Everything else, including case
- * variants such as `Read`, is preserved verbatim; upstream accepts them
- * alongside `read`.
+ * be appended without a duplicate name. Upstream-gated names and name/schema
+ * combinations travel under collision-free aliases with their schemas intact.
  *
  * @param {Array} tools
  * @returns {{ tools: Array, map: Map<string,string> }} map: sent name -> original name
@@ -164,9 +180,10 @@ export function concealFingerprintToolNames(tools) {
     }
 
     const name = toolNameOf(tool);
-    if (GATED_TOOL_NAME_RE.test(name)) {
-      let alias = GATED_TOOL_ALIAS;
-      for (let i = 2; taken.has(alias); i++) alias = `${GATED_TOOL_ALIAS}${i}`;
+    const gatedAlias = GATED_TOOL_NAME_RE.test(name) ? GATED_TOOL_ALIAS : gatedNameSchemaAlias(tool, name);
+    if (gatedAlias) {
+      let alias = gatedAlias;
+      for (let i = 2; taken.has(alias); i++) alias = `${gatedAlias}${i}`;
       taken.add(alias);
       map.set(alias, name);
       out.push(withToolName(tool, alias));

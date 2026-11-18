@@ -3,6 +3,10 @@
 Next local beta: version set by the next release commit.
 
 ## Fixes
+- **Codex GPT-6.2**: use the Responses Lite request shape and supported thinking levels for Sol; add Sol/Astra `-1m` catalog variants using the existing context convention and Codex-specific capability limits (adapted from PR #5741).
+- **OpenCode free tier**: isolate upstream sessions by client identity/User-Agent; conceal additional gated tool names and Claude Code Edit/Read schema fingerprints with collision-safe request/response name restoration (PR #5725). Native OpenCode session IDs remain unchanged.
+- **Claude streaming usage**: forward cache read/write details to OpenAI clients, including `message_stop` fallback; keep the client token buffer out of recorded usage and fold cache tokens into persisted totals only once (adapted from PR #5743).
+- **GPT-6.2 pricing**: share rates across OpenAI API and Codex. Per million tokens (input/cached read/cache write/output): Sol $2/$0.10/$2.50/$10; Astra $8/$0.40/$10/$40. Reasoning uses the output rate.
 - **Antigravity**: strip/rewrite Claude Code prompt fingerprints that trigger fake 429 responses (PR #5733); use the live per-account catalog and hide disabled/internal models in provider model discovery (PR #5734).
 - **Kimi Code**: recognize K3.1 Pro and Highspeed IDs with 1,048,576-token context metadata (PR #5722).
 - **Codex images**: resize individual inline and fetched images exceeding 30,000 32×32 patches before forwarding. Preserve aspect ratio and requested detail; images within the limit remain unchanged. Install Sharp directly for server and CLI image processing.
