@@ -157,6 +157,49 @@ describe("opencodeFingerprint — request side", () => {
     expect(restored.choices[0].message.tool_calls[0].function.name).toBe("terminal");
   });
 
+  it.each([true, false])("roundtrips gated aliases without collisions (flat=%s)", (isFlat) => {
+    const originals = ["ReportFindings", "exec_command", "Edit", "Read"];
+    const aliases = ["run_command2", "run_command3", "file_edit2", "file_read2"];
+    const tools = [
+      ...flat(["run_command", "file_edit", "file_read", "ScheduleWakeup", "DeferredToolPlaceholder", "write_stdin"]),
+      ...originals.map((name) => ({ type: "function", name, parameters: { type: "object", properties: { old_string: { type: "string" }, file_path: { type: "string" } } } })),
+    ];
+    const body = {
+      tools: isFlat ? tools : tools.map(({ name, parameters, ...rest }) => ({ ...rest, function: { name, parameters } })),
+      tool_choice: isFlat ? { type: "function", name: "Edit" } : { type: "function", function: { name: "Edit" } },
+      input: originals.map((name) => ({ type: "function_call", name, arguments: "{}" })),
+      messages: [{ role: "assistant", tool_calls: originals.map((name) => ({ type: "function", function: { name, arguments: "{}" } })) }],
+    };
+    const map = applyFingerprintTools(body, isFlat);
+    expect([...map]).toEqual(aliases.map((alias, i) => [alias, originals[i]]));
+    expect(new Set(namesOf(body.tools)).size).toBe(body.tools.length);
+    expect(body.tool_choice.name ?? body.tool_choice.function.name).toBe("file_edit2");
+    expect(body.input.map((item) => item.name)).toEqual(aliases);
+    expect(body.messages.flatMap((msg) => msg.tool_calls || []).map((call) => call.function.name)).toEqual(aliases);
+    expect(restoreToolNames({ output: body.input }, map).output.map((item) => item.name)).toEqual(originals);
+    expect(restoreToolNames({ choices: [{ message: body.messages.find((msg) => msg.tool_calls) }] }, map)
+      .choices[0].message.tool_calls.map((call) => call.function.name)).toEqual(originals);
+    expect(namesOf(body.tools)).toEqual(expect.arrayContaining(["ScheduleWakeup", "DeferredToolPlaceholder", "write_stdin"]));
+    const edit = body.tools.find((tool) => (tool.name ?? tool.function?.name) === "file_edit2");
+    expect((edit.function || edit).parameters).toBe(tools[8].parameters);
+  });
+
+  it.each(["old_string", "new_string"])("gates Edit on the individual %s property", (prop) => {
+    const { tools, map } = concealFingerprintToolNames([{ name: "Edit", parameters: { properties: { [prop]: {} } } }]);
+    expect(tools[0].name).toBe("file_edit");
+    expect(map.get("file_edit")).toBe("Edit");
+  });
+
+  it("leaves near-miss schema combinations alone", () => {
+    const tools = [
+      { name: "read", parameters: { properties: { file_path: {} } } },
+      { name: "Edit", parameters: { properties: { file_path: {} } } },
+      { name: "Read", parameters: { properties: { offset: {} } } },
+      { name: "Read", parameters: { properties: [] } },
+    ];
+    expect(namesOf(concealFingerprintToolNames(tools).tools)).toEqual(["read_client", "Edit", "Read", "Read"]);
+  });
+
   it("never throws on malformed tools", () => {
     for (const tools of [null, undefined, "nope", [null, 42, []], [{}, { name: "" }]]) {
       expect(() => concealFingerprintToolNames(tools)).not.toThrow();

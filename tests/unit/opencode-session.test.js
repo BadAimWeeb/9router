@@ -280,6 +280,37 @@ describe("OpenCode Stable Session Reuse (429 follow-up)", () => {
     expect(forKey("user-A")).toMatch(OPENCODE_SESSION_RE);
   });
 
+  it("isolates stable sessions by named client and generic User-Agent", () => {
+    const credentials = anonymousCredentials("shared-client-key");
+    expect(stableSessionId(credentials, "claude")).not.toBe(stableSessionId(credentials, "codex"));
+    expect(stableSessionId(credentials, "claude")).toBe(stableSessionId(credentials, "claude"));
+    const forUa = (ua) => stableSessionId({ ...credentials, rawHeaders: { ...credentials.rawHeaders, "UsEr-AgEnT": ua } });
+    expect(forUa("CherryStudio/1.0")).not.toBe(forUa("chatbox/2.3"));
+    expect(forUa("CherryStudio/1.0")).toBe(forUa("CherryStudio/1.0"));
+  });
+
+  it.each([null, "foreign-session"])("isolates managed and hinted sessions by generic client (%s)", (providerSessionId) => {
+    const executor = getExecutor("opencode");
+    const forUa = (ua) => executor.prepareRequestCredentials({
+      body: { messages: [{ role: "user", content: "hello" }] },
+      credentials: makeCredentials({ rawHeaders: { "User-Agent": ua } }),
+      providerSessionId,
+      clientTool: null,
+    })._opencodeSession;
+    expect(forUa("app-A")).not.toBe(forUa("app-B"));
+    expect(forUa("app-A")).toBe(forUa("app-A"));
+    expect(forUa("app-A")).toMatch(OPENCODE_SESSION_RE);
+  });
+
+  it("preserves a native session regardless of downstream client", () => {
+    const executor = getExecutor("opencode");
+    const session = generateSessionId();
+    for (const clientTool of [null, "claude", "codex"]) {
+      const result = executor.prepareRequestCredentials({ body: {}, credentials: makeCredentials({ rawHeaders: { "x-opencode-session": session } }), providerSessionId: null, clientTool });
+      expect(result._opencodeSession).toBe(session);
+    }
+  });
+
   it("exposes the stable session helper directly", () => {
     const first = stableSessionId({ connectionId: "direct-conn" });
     expect(stableSessionId({ connectionId: "direct-conn" })).toBe(first);
