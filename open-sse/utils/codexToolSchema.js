@@ -15,11 +15,9 @@
 // account fails identically and the combo pays a full failover before landing
 // somewhere that accepts it (#3922).
 //
-// Scope guardrail (#3667): this is NOT a global schema sanitizer. Providers
-// that do support `\p{...}` keep the constraint untouched — the strip runs only
-// on the Codex dispatch path, and only on `pattern` strings that actually
-// contain a property escape. Everything else in the schema (including valid
-// patterns) passes through byte-identical.
+// Scope guardrail (#3667): this is NOT a global schema sanitizer. Only the
+// Codex dispatch path removes Unicode-property patterns and `uniqueItems`.
+// Supported constraints, schema-map names, and literal data remain unchanged.
 
 // `\p{...}` / `\P{...}` with an odd number of preceding backslashes — an even
 // count means the backslash itself is escaped, so `\\p{Cc}` is a literal "p".
@@ -29,51 +27,50 @@ export function hasUnicodePropertyEscape(pattern) {
   return typeof pattern === "string" && UNICODE_PROPERTY_ESCAPE.test(pattern);
 }
 
-// Copy-on-write walk: returns the original reference when nothing changed, so
-// untouched schemas keep object identity and callers can cheaply detect a no-op.
-// `properties` is special-cased because its keys are arbitrary property *names*
-// (which may themselves be "pattern" or "properties") and must never be read as
-// schema keywords; every other key recurses as an ordinary schema node.
-function stripNode(node, stats) {
+// Only schema-bearing keywords recurse: annotations and literal values are data.
+const SCHEMA_MAPS = new Set(["properties", "patternProperties", "$defs", "definitions", "dependentSchemas", "dependencies"]);
+const SCHEMA_CHILDREN = new Set([
+  "items", "prefixItems", "additionalItems", "contains", "additionalProperties",
+  "unevaluatedItems", "unevaluatedProperties", "propertyNames", "allOf", "anyOf",
+  "oneOf", "not", "if", "then", "else", "contentSchema",
+]);
+
+// Copy only changed paths, retaining identity (and avoiding copies) on a no-op.
+function stripNode(node, stats, schemaMap = false) {
   if (Array.isArray(node)) {
-    let changed = false;
-    const next = node.map((item) => {
-      const cleaned = stripNode(item, stats);
-      if (cleaned !== item) changed = true;
-      return cleaned;
-    });
-    return changed ? next : node;
+    let next;
+    for (let i = 0; i < node.length; i++) {
+      const cleaned = stripNode(node[i], stats);
+      if (cleaned !== node[i]) {
+        next ??= node.slice();
+        next[i] = cleaned;
+      }
+    }
+    return next ?? node;
   }
   if (!node || typeof node !== "object") return node;
 
-  let changed = false;
-  const next = {};
-  for (const [key, value] of Object.entries(node)) {
-    if (key === "pattern" && hasUnicodePropertyEscape(value)) {
+  let next;
+  for (const key of Object.keys(node)) {
+    const value = node[key];
+    if (!schemaMap && ((key === "pattern" && hasUnicodePropertyEscape(value)) || key === "uniqueItems")) {
       stats.removed++;
-      changed = true;
+      next ??= { ...node };
+      delete next[key];
       continue;
     }
-    if (key === "properties" && value && typeof value === "object" && !Array.isArray(value)) {
-      let propsChanged = false;
-      const props = {};
-      for (const [propName, propSchema] of Object.entries(value)) {
-        const cleaned = stripNode(propSchema, stats);
-        if (cleaned !== propSchema) propsChanged = true;
-        props[propName] = cleaned;
-      }
-      if (propsChanged) changed = true;
-      next[key] = propsChanged ? props : value;
-      continue;
+    const cleaned = schemaMap || SCHEMA_CHILDREN.has(key)
+      ? stripNode(value, stats)
+      : SCHEMA_MAPS.has(key) ? stripNode(value, stats, true) : value;
+    if (cleaned !== value) {
+      next ??= { ...node };
+      Object.defineProperty(next, key, { value: cleaned, enumerable: true, configurable: true, writable: true });
     }
-    const cleaned = stripNode(value, stats);
-    if (cleaned !== value) changed = true;
-    next[key] = cleaned;
   }
-  return changed ? next : node;
+  return next ?? node;
 }
 
-// Remove only the `pattern` constraints Codex's validator rejects.
+// Remove only Unicode-property patterns and uniqueItems rejected by Codex.
 // Returns the same reference when the schema is already compatible.
 export function stripCodexUnsupportedPatterns(schema, stats = { removed: 0 }) {
   return stripNode(schema, stats);

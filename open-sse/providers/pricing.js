@@ -354,6 +354,7 @@ export const PATTERN_PRICING = [
   // Gemini 4 Hydrogen: flat $1.50 / $7.50 across the 1M window. Implicit caching only (95% off
   // input → $0.075); there are no explicit cache writes, so cache_creation bills as plain input.
   { pattern: "gemini-4-hydrogen*", pricing: { input: 1.50, output: 7.50, cached: 0.075, reasoning: 7.50, cache_creation: 1.50 } },
+  { pattern: "gemini-4-neon*", pricing: { input: 3.00, output: 15.00, cached: 0.15, reasoning: 15.00, cache_creation: 3.00 } },
   { pattern: "gemini-4-*",      pricing: { input: 2.00,  output: 10.00, cached: 0.10,  reasoning: 10.00,  cache_creation: 0.1875 } },
   { pattern: "gemini-3-*",      pricing: { input: 0.50,  output: 3.00,  cached: 0.03,  reasoning: 4.50,   cache_creation: 0.50  } },
   { pattern: "gemini-2.5-*",    pricing: { input: 0.30,  output: 2.50,  cached: 0.03,  reasoning: 3.75,   cache_creation: 0.30  } },
@@ -442,6 +443,10 @@ export function getPricingForModel(provider, model) {
   const baseModel = model.includes("/") ? model.split("/").pop() : model;
   if (MODEL_PRICING[baseModel]) return MODEL_PRICING[baseModel];
   if (MODEL_PRICING[model]) return MODEL_PRICING[model];
+  if (provider === "codex" || provider === "cx") {
+    const normalized = baseModel.replace(/^(gpt-6\.2-(?:sol|astra))\((?:low|medium|high|xhigh|max)\)$/, "$1");
+    if (normalized !== baseModel && MODEL_PRICING[normalized]) return MODEL_PRICING[normalized];
+  }
 
   // 4. Pattern match
   for (const { pattern, pricing } of PATTERN_PRICING) {

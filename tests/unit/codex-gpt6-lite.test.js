@@ -9,6 +9,14 @@ import * as proxyFetchModule from "../../open-sse/utils/proxyFetch.js";
 
 const credentials = { connectionId: "fixture", accessToken: "fixture-token" };
 afterEach(() => vi.restoreAllMocks());
+it.each(["codex", "cx"])("preserves GPT-6.2 suffix capabilities and pricing on %s", (provider) => {
+  for (const [model, contextWindow] of [["gpt-6.2-sol", 500000], ["gpt-6.2-astra", 272000]]) {
+    for (const level of ["low", "medium", "high", "xhigh", "max"]) {
+      expect(getCapabilitiesForModel(provider, `${model}(${level})`).contextWindow).toBe(contextWindow);
+      expect(getPricingForModel(provider, `${model}(${level})`)).toEqual(getPricingForModel(provider, model));
+    }
+  }
+});
 
 describe("Codex GPT-6 Sol/Luna transport", () => {
   it.each(["gpt-6.2-sol", "gpt-6.1-sol", "gpt-6-sol", "gpt-6-luna"])("lists %s with Codex capabilities", (model) => {
@@ -20,7 +28,7 @@ describe("Codex GPT-6 Sol/Luna transport", () => {
       reasoning: true,
       search: true,
       thinkingFormat: "openai",
-      contextWindow: 272000,
+      contextWindow: model === "gpt-6.2-sol" ? 500000 : 272000,
       maxOutput: 128000,
     });
     expect(getThinkingLevels("codex", model)).toEqual(["low", "medium", "high", "xhigh", "max"]);

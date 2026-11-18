@@ -39,7 +39,7 @@ export async function GET() {
 // POST /api/models/custom - Add custom model
 export async function POST(request) {
   try {
-    const { providerAlias, id, type, name, caps, transport, upstreamFormat } = await request.json();
+    const { providerAlias, id, type, name, caps, transport, upstreamFormat, upstreamModelId } = await request.json();
     if (!providerAlias || !id) {
       return NextResponse.json({ error: "providerAlias and id required" }, { status: 400 });
     }
@@ -48,7 +48,11 @@ export async function POST(request) {
     if (upstreamFormat !== undefined && (type !== "tts" || !["", ...TTS_UPSTREAM_FORMATS].includes(upstreamFormat))) {
       return NextResponse.json({ error: "Invalid TTS upstream format" }, { status: 400 });
     }
-    const added = await addCustomModel({ providerAlias, id, type: type || "llm", name, ...(cleanCaps ? { caps: cleanCaps } : {}), ...(cleanTransport ? { transport: cleanTransport } : {}), ...(upstreamFormat !== undefined ? { upstreamFormat } : {}) });
+    const cleanUpstreamModelId = typeof upstreamModelId === "string" ? upstreamModelId.trim() : "";
+    if (upstreamModelId !== undefined && (!cleanUpstreamModelId || cleanUpstreamModelId.length > 256 || /[\r\n\0]/.test(upstreamModelId))) {
+      return NextResponse.json({ error: "Invalid upstream model ID" }, { status: 400 });
+    }
+    const added = await addCustomModel({ providerAlias, id, type: type || "llm", name, ...(cleanCaps ? { caps: cleanCaps } : {}), ...(cleanTransport ? { transport: cleanTransport } : {}), ...(upstreamFormat !== undefined ? { upstreamFormat } : {}), ...(cleanUpstreamModelId ? { upstreamModelId: cleanUpstreamModelId } : {}) });
     return NextResponse.json({ success: true, added });
   } catch (error) {
     console.log("Error adding custom model:", error);

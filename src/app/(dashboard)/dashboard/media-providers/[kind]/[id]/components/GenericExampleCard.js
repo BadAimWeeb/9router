@@ -64,7 +64,7 @@ export function GenericExampleCard({ providerId, kind, catalogModels }) {
   const supportsMask = Array.isArray(selectedModelObj?.capabilities) && selectedModelObj.capabilities.includes("mask");
 
   const [input, setInput] = useState(safeExConfig.defaultInput || "");
-  const [question, setQuestion] = useState("Does this request require urgent attention?");
+  const [question, setQuestion] = useState("");
   const [refImage, setRefImage] = useState("");
   const [maskImage, setMaskImage] = useState("");
   const [extraValues, setExtraValues] = useState(() =>
@@ -131,20 +131,18 @@ export function GenericExampleCard({ providerId, kind, catalogModels }) {
     acc[k] = v;
     return acc;
   }, {});
-  const systemoneQuestions = kind === "systemone" ? {
-    questions: {
-      is_urgent: {
-        type: "noul",
-        instructions: question.trim() || "Does this request require urgent attention?",
-      },
-    },
-  } : {};
+  const isFieldsShape = selectedModelObj?.payloadShape === "fields";
+  const systemonePayload = kind === "systemone" ? (isFieldsShape ? {
+    fields: { summary: { type: "text", instructions: question.trim() || "Extract the key request summary." } },
+  } : {
+    questions: { is_urgent: { type: "noul", instructions: question.trim() || "Does this request require urgent attention?" } },
+  }) : {};
   const requestBody = {
     model: modelFull,
     [exConfig.bodyKey]: input,
     ...exConfig.extraBody,
     ...extraBodyFromFields,
-    ...systemoneQuestions,
+    ...systemonePayload,
     ...(supportsEdit && effectiveRefImage ? { image: effectiveRefImage } : {}),
     ...(supportsMask && effectiveMaskImage ? { mask_image: effectiveMaskImage } : {}),
   };
@@ -361,12 +359,12 @@ export function GenericExampleCard({ providerId, kind, catalogModels }) {
 
         {/* Question for System One */}
         {kind === "systemone" && (
-          <Row label="Question">
+          <Row label={isFieldsShape ? "Extraction instructions" : "Question"}>
             <div className="relative">
               <input
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
-                placeholder="Enter evaluation question or criteria"
+                placeholder={isFieldsShape ? "Extract the key request summary." : "Enter evaluation question or criteria"}
                 className="w-full px-3 py-1.5 pr-7 text-sm border border-border rounded-lg bg-background focus:outline-none focus:border-primary"
               />
               {question && (
