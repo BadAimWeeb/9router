@@ -56,6 +56,10 @@ export async function POST(request) {
     if (upstreamFormat !== undefined && (type !== "tts" || !["", ...TTS_UPSTREAM_FORMATS].includes(upstreamFormat))) {
       return NextResponse.json({ error: "Invalid TTS upstream format" }, { status: 400 });
     }
+    const cleanUpstreamModelId = sanitizeUpstreamModelId(upstreamModelId);
+    if (upstreamModelId !== undefined && !cleanUpstreamModelId) {
+      return NextResponse.json({ error: "Invalid upstream model ID" }, { status: 400 });
+    }
     const added = await addCustomModel({
       providerAlias,
       id,

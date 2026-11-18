@@ -34,9 +34,8 @@ export async function getCustomModels() {
 export async function addCustomModel({ providerAlias, id, type = "llm", name, caps, transport, upstreamModelId, upstreamFormat }) {
   const k = customKey(providerAlias, id, type);
   const db = await getAdapter();
-  const cleanUpstream = typeof upstreamModelId === "string" && upstreamModelId.trim()
-    ? upstreamModelId.trim()
-    : null;
+  const cleanUpstream = typeof upstreamModelId === "string" && upstreamModelId.trim().length <= 256 && !/[\r\n\0]/.test(upstreamModelId)
+    ? upstreamModelId.trim() : null;
   let added = false;
   db.transaction(() => {
     const row = db.get(`SELECT value FROM kv WHERE scope = 'customModels' AND key = ?`, [k]);

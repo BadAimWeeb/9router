@@ -139,28 +139,20 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
   if (kind === "systemone") {
     const slashIdx = typeof model === "string" ? model.indexOf("/") : -1;
     const rawProvider = slashIdx > 0 ? model.slice(0, slashIdx) : "";
-    const rawModelId = slashIdx > 0 ? model.slice(slashIdx + 1) : model;
-    const resolvedProvider = rawProvider ? (resolveProviderId(rawProvider) || rawProvider) : "";
-    const meta = resolvedProvider ? (getModelMeta(resolvedProvider, rawModelId) || getModelMeta(rawProvider, rawModelId)) : null;
-    const isFieldsShape = meta?.payloadShape === "fields";
-
+    const modelId = slashIdx > 0 ? model.slice(slashIdx + 1) : model;
+    const provider = resolveProviderId(rawProvider) || rawProvider;
+    const isFieldsShape = getModelMeta(provider, modelId)?.payloadShape === "fields";
     const res = await fetch(`${baseUrl}/api/v1/systemone`, {
       method: "POST",
       headers,
       body: JSON.stringify({
         model,
         state: "Customer: I was charged twice for my order this morning.",
-        ...(isFieldsShape
-          ? {
-              fields: {
-                probe: { type: "text", instructions: "Extract the billing issue reported by the customer." },
-              },
-            }
-          : {
-              questions: {
-                probe: { type: "noul", instructions: "Is the customer reporting a billing problem?" },
-              },
-            }),
+        ...(isFieldsShape ? {
+          fields: { probe: { type: "text", instructions: "Extract the billing issue reported by the customer." } },
+        } : {
+          questions: { probe: { type: "noul", instructions: "Is the customer reporting a billing problem?" } },
+        }),
       }),
       signal: AbortSignal.timeout(15000),
     });
@@ -174,19 +166,10 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
       return { ok: false, latencyMs, error: `HTTP ${res.status}${detail ? `: ${String(detail).slice(0, 240)}` : ""}`, status: res.status };
     }
 
-    const answerMap = isFieldsShape
-      ? (parsed?.fields || parsed?.values || parsed?.answers || parsed?.result)
-      : parsed?.answers;
-    const hasAnswers = answerMap && typeof answerMap === "object" && Object.keys(answerMap).length > 0;
+    const answerMaps = isFieldsShape ? [parsed?.fields, parsed?.values, parsed?.answers, parsed?.result] : [parsed?.answers];
+    const hasAnswers = answerMaps.some((value) => value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).length > 0);
     if (!hasAnswers) {
-      return {
-        ok: false,
-        latencyMs,
-        status: res.status,
-        error: isFieldsShape
-          ? "Provider returned no extracted fields for this model"
-          : "Provider returned no answers for this model",
-      };
+      return { ok: false, latencyMs, status: res.status, error: isFieldsShape ? "Provider returned no extracted fields for this model" : "Provider returned no answers for this model" };
     }
     return { ok: true, latencyMs, error: null, status: res.status };
   }

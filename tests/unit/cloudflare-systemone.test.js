@@ -135,6 +135,10 @@ describe("handleSystemoneCore for cloudflare-ai decision, extraction, and custom
 });
 
 describe("aliasRepo.addCustomModel upstreamModelId persistence (#5748)", () => {
+  afterEach(() => {
+    vi.doUnmock("../../src/lib/db/driver.js");
+    vi.resetModules();
+  });
   it("persists upstreamModelId on insert and preserves it across partial updates", async () => {
     const store = new Map();
     vi.resetModules();
@@ -179,11 +183,18 @@ describe("aliasRepo.addCustomModel upstreamModelId persistence (#5748)", () => {
       name: "Clef Next Renamed",
       upstreamModelId: "clef-next",
     });
+    await addCustomModel({ providerAlias: "cloudflare-ai", id: "@cf/cloudflare/clef-next", type: "systemone", upstreamModelId: " clef-revised " });
+    expect(JSON.parse(store.get("cloudflare-ai|@cf/cloudflare/clef-next|systemone")).upstreamModelId).toBe("clef-revised");
   });
 });
 
 describe("pingModelByKind for systemone decision vs extraction models (#5748)", () => {
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.doUnmock("@/lib/localDb");
+    vi.doUnmock("@/shared/utils/machineId");
+    vi.resetModules();
+  });
 
   it("sends fields probe for @cf/cloudflare/clairic and questions probe for @cf/cloudflare/clef", async () => {
     vi.resetModules();
@@ -215,38 +226,76 @@ describe("pingModelByKind for systemone decision vs extraction models (#5748)", 
   });
 });
 
-const answers = { is_urgent: { type: "noul", noul: 0.9477 } };
-const usage = { input_tokens: 162, output_tokens: 0 };
-
-async function call(provider, model, upstreamBody, credentials = {}) {
-  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(upstreamBody), { status: 200 })));
-  const result = await handleSystemoneCore({
-    body: { state: "s", questions: { is_urgent: { type: "noul", instructions: "i" } } },
-    modelInfo: { provider, model },
-    credentials,
-  });
-  expect(result.success).toBe(true);
-  return { result, json: await result.response.json() };
-}
-
-describe("handleSystemoneCore response envelope", () => {
-  afterEach(() => vi.unstubAllGlobals());
-
-  it("unwraps Cloudflare's { result } envelope", async () => {
-    // Shape returned by api.cloudflare.com/client/v4/accounts/<id>/ai/run/@cf/cloudflare/clef-flash
-    const { result, json } = await call(
-      "cloudflare-ai",
-      "@cf/cloudflare/clef-flash",
-      { result: { model: "clef-flash", answers, usage }, success: true, errors: [], messages: [] },
-      { apiKey: "k", providerSpecificData: { accountId: "acc" } },
-    );
-    expect(json).toEqual({ model: "clef-flash", answers, usage });
-    expect(result.usage).toEqual({ prompt_tokens: 162, completion_tokens: 0 });
+describe("System One request boundaries", () => {
+  it.each([null, [], "invalid", 1])("rejects non-object request %j", (body) => {
+    expect(validateSystemonePayload(body, "cloudflare-ai", "@cf/cloudflare/clairic")).toBe("Invalid JSON body");
   });
 
-  it("forwards an unwrapped System One body untouched", async () => {
-    const body = { model: "jev-1.13-free", answers, usage };
-    const { json } = await call("opencode", "jev-1.13-free", body, { apiKey: "k" });
-    expect(json).toEqual(body);
+  it("keeps known decision maps strict while accepting custom extraction maps", () => {
+    const body = { state: "invoice", fields: { total: { type: "number" } } };
+    expect(validateSystemonePayload(body, "cloudflare-ai", "@cf/cloudflare/clef")).toBe("Missing required field: questions");
+    expect(validateSystemonePayload(body, "cloudflare-ai", "@cf/cloudflare/custom-extractor")).toBeNull();
+    expect(validateSystemonePayload({ state: "invoice", fields: [] }, "cloudflare-ai", "@cf/cloudflare/clairic")).toBe("Missing required field: fields");
+  });
+
+  it("does not mutate the caller's request while rewriting the selector", async () => {
+    const body = Object.freeze({ state: "invoice", fields: Object.freeze({ total: { type: "number" } }), model: "cf/@cf/cloudflare/clairic" });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ values: { total: 12 } }))));
+    try {
+      const result = await handleSystemoneCore({ body, modelInfo: { provider: "cloudflare-ai", model: "@cf/cloudflare/clairic" }, credentials: { apiKey: "key", providerSpecificData: { accountId: "account" } } });
+      expect(result.success).toBe(true);
+      expect(body.model).toBe("cf/@cf/cloudflare/clairic");
+      expect(JSON.parse(fetch.mock.calls[0][1].body).model).toBe("clairic");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
+describe("custom upstream selector API", () => {
+  afterEach(() => {
+    vi.doUnmock("@/models");
+    vi.resetModules();
+  });
+
+  it("forwards trimmed selectors and leaves omitted selectors untouched on partial updates", async () => {
+    vi.resetModules();
+    const addCustomModel = vi.fn(async () => true);
+    vi.doMock("@/models", () => ({ addCustomModel, getCustomModels: vi.fn(), deleteCustomModel: vi.fn() }));
+    const { POST } = await import("../../src/app/api/models/custom/route.js");
+    const base = { providerAlias: "cf", id: "@cf/cloudflare/custom", type: "systemone" };
+    const post = (body) => POST(new Request("http://localhost/api/models/custom", { method: "POST", body: JSON.stringify(body) }));
+    expect((await post({ ...base, upstreamModelId: " custom " })).status).toBe(200);
+    expect(addCustomModel.mock.calls[0][0].upstreamModelId).toBe("custom");
+    expect((await post({ ...base, name: "Renamed" })).status).toBe(200);
+    expect(addCustomModel.mock.calls[1][0]).not.toHaveProperty("upstreamModelId");
+    for (const upstreamModelId of [null, 1, "", "\ncustom", "custom\0", "x".repeat(257)]) {
+      expect((await post({ ...base, upstreamModelId })).status).toBe(400);
+    }
+    expect(addCustomModel).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("System One custom selector route forwarding", () => {
+  afterEach(() => {
+    for (const path of ["@/lib/localDb", "../../src/sse/services/auth.js", "../../src/sse/services/model.js", "../../src/sse/services/keyAccess.js", "../../src/sse/services/tokenRefresh.js", "@/lib/usageDb.js", "open-sse/handlers/systemoneCore.js"]) vi.doUnmock(path);
+    vi.resetModules();
+  });
+
+  it("matches a saved UI alias and forwards the selector without changing the path model", async () => {
+    vi.resetModules();
+    const core = vi.fn(async () => ({ success: true, response: Response.json({ values: { total: 12 } }) }));
+    vi.doMock("@/lib/localDb", () => ({ getSettings: async () => ({}), getCustomModels: async () => [{ providerAlias: "cf", id: "@cf/cloudflare/custom", type: "systemone", upstreamModelId: "custom" }] }));
+    vi.doMock("../../src/sse/services/auth.js", () => ({ getProviderCredentials: async () => ({ apiKey: "key", connectionId: "connection" }), markAccountUnavailable: vi.fn(), clearAccountError: vi.fn(), extractApiKey: () => null, isValidApiKey: async () => true }));
+    vi.doMock("../../src/sse/services/model.js", () => ({ getModelInfo: async () => ({ provider: "cloudflare-ai", model: "@cf/cloudflare/custom" }) }));
+    vi.doMock("../../src/sse/services/keyAccess.js", () => ({ getKeyAccessContext: async () => null, enforceKeyAccessResolved: async () => null }));
+    vi.doMock("../../src/sse/services/tokenRefresh.js", () => ({ checkAndRefreshToken: async (_provider, credentials) => credentials }));
+    vi.doMock("@/lib/usageDb.js", () => ({ saveRequestUsage: vi.fn() }));
+    vi.doMock("open-sse/handlers/systemoneCore.js", () => ({ handleSystemoneCore: core, validateSystemonePayload }));
+    const { handleSystemone } = await import("../../src/sse/handlers/systemone.js");
+    const body = { model: "cf/@cf/cloudflare/custom", state: "invoice", fields: { total: { type: "number" } } };
+    const response = await handleSystemone(new Request("http://localhost/api/v1/systemone", { method: "POST", body: JSON.stringify(body) }));
+    expect(response.status).toBe(200);
+    expect(core.mock.calls[0][0]).toMatchObject({ body, modelInfo: { provider: "cloudflare-ai", model: "@cf/cloudflare/custom", upstreamModelId: "custom" } });
   });
 });

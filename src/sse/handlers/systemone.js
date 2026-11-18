@@ -31,6 +31,9 @@ export async function handleSystemone(request) {
     log.warn("SYSTEMONE", "Invalid JSON body");
     return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid JSON body");
   }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid JSON body");
+  }
 
   const url = new URL(request.url);
   const modelStr = body.model;
@@ -59,7 +62,7 @@ export async function handleSystemone(request) {
     }
   }
 
-  if (!modelStr) {
+  if (typeof modelStr !== "string" || !modelStr.trim()) {
     log.warn("SYSTEMONE", "Missing model");
     return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing model");
   }
@@ -75,29 +78,18 @@ export async function handleSystemone(request) {
 
   const { provider, model } = modelInfo;
 
-  // Resolve optional custom-model upstreamModelId (e.g. Cloudflare decision models registered via /api/models/custom).
-  let customUpstreamModelId = null;
-  try {
-    const entry = REGISTRY.find((r) => r.id === provider || r.alias === provider);
-    const acceptedAliases = new Set([provider, entry?.id, entry?.alias, entry?.uiAlias, ...(entry?.aliases || [])].filter(Boolean));
-    const customModels = await getCustomModels();
-    const hit = customModels.find(
-      (c) => c && c.type === "systemone" && acceptedAliases.has(c.providerAlias) && c.id === model
-        && typeof c.upstreamModelId === "string" && c.upstreamModelId.trim()
-    );
-    if (hit) customUpstreamModelId = hit.upstreamModelId.trim();
-  } catch {
-    // DB unreadable: fall back to static registry metadata
-  }
-
   const payloadError = validateSystemonePayload(body, provider, model);
-  if (payloadError) {
-    return errorResponse(HTTP_STATUS.BAD_REQUEST, payloadError);
-  }
+  if (payloadError) return errorResponse(HTTP_STATUS.BAD_REQUEST, payloadError);
 
   // Per-key access control: checked before any credential lookup.
   const keyAccessDenied = await enforceKeyAccessResolved(await getKeyAccessContext(request), modelStr, provider, model);
   if (keyAccessDenied) return keyAccessDenied;
+
+  const entry = REGISTRY.find((r) => r.id === provider || r.alias === provider);
+  const acceptedAliases = new Set([provider, entry?.id, entry?.alias, entry?.uiAlias, ...(entry?.aliases || [])].filter(Boolean));
+  const customModel = (await getCustomModels()).find((c) =>
+    c?.type === "systemone" && acceptedAliases.has(c.providerAlias) && c.id === model
+  );
 
   if (modelStr !== `${provider}/${model}`) {
     log.info("ROUTING", `${modelStr} → ${provider}/${model}`);
@@ -138,7 +130,7 @@ export async function handleSystemone(request) {
     try {
       result = await handleSystemoneCore({
         body,
-        modelInfo: { provider, model, ...(customUpstreamModelId ? { upstreamModelId: customUpstreamModelId } : {}) },
+        modelInfo: { provider, model, upstreamModelId: customModel?.upstreamModelId },
         credentials: refreshedCredentials,
         log,
         onRequestSuccess: async () => {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { CodexExecutor } from "../../open-sse/executors/codex.js";
+import { stripCodexUnsupportedPatterns } from "../../open-sse/utils/codexToolSchema.js";
 
 function normalizeTools(tools) {
   const executor = new CodexExecutor();
@@ -221,5 +222,66 @@ describe("CodexExecutor tool normalization", () => {
         format: { type: "grammar", syntax: "lark", definition: "start: /.+/" },
       },
     ]);
+  });
+  it.each(["properties", "patternProperties", "$defs", "definitions", "dependentSchemas", "dependencies"])("preserves names in %s schema maps", (keyword) => {
+    const literal = { uniqueItems: true, pattern: "\\p{L}" };
+    const entries = JSON.parse('{"uniqueItems":{},"pattern":{},"__proto__":{}}');
+    for (const name of Object.keys(entries)) {
+      entries[name] = { type: "array", uniqueItems: false, items: { type: "string", pattern: "\\p{L}" }, default: literal };
+    }
+    const source = { [keyword]: entries };
+    const stats = { removed: 0 };
+    const cleaned = stripCodexUnsupportedPatterns(source, stats);
+    expect(Object.keys(cleaned[keyword])).toEqual(Object.keys(entries));
+    for (const name of Object.keys(entries)) {
+      expect(cleaned[keyword][name]).toEqual({ type: "array", items: { type: "string" }, default: literal });
+      expect(cleaned[keyword][name].default).toBe(literal);
+      expect(entries[name].uniqueItems).toBe(false);
+    }
+    expect(stats.removed).toBe(6);
+  });
+
+  it.each([
+    "items", "prefixItems", "additionalItems", "contains", "additionalProperties",
+    "unevaluatedItems", "unevaluatedProperties", "propertyNames", "allOf", "anyOf",
+    "oneOf", "not", "if", "then", "else", "contentSchema",
+  ])("sanitizes nested %s schemas without mutating their source", (keyword) => {
+    const child = { type: "array", uniqueItems: true };
+    const array = ["prefixItems", "allOf", "anyOf", "oneOf"].includes(keyword);
+    const source = { [keyword]: array ? [child, true] : child };
+    const cleaned = stripCodexUnsupportedPatterns(source);
+    expect(cleaned[keyword]).toEqual(array ? [{ type: "array" }, true] : { type: "array" });
+    expect(child.uniqueItems).toBe(true);
+  });
+
+  it("preserves literal annotations, supported constraints and unchanged branch identity", () => {
+    const literal = { uniqueItems: true, pattern: "\\p{L}", properties: { uniqueItems: false } };
+    const unchanged = { type: "string", pattern: "^[a-z]+$" };
+    const source = {
+      const: literal, default: literal, enum: [literal], examples: [literal], "x-data": literal,
+      required: ["uniqueItems", "pattern"],
+      properties: { unchanged, changed: { type: "array", uniqueItems: false } },
+    };
+    const cleaned = stripCodexUnsupportedPatterns(source);
+    expect(cleaned.properties.changed).toEqual({ type: "array" });
+    expect(cleaned.properties.unchanged).toBe(unchanged);
+    for (const key of ["const", "default", "enum", "examples", "x-data", "required"]) {
+      expect(cleaned[key]).toBe(source[key]);
+    }
+    expect(stripCodexUnsupportedPatterns(cleaned)).toBe(cleaned);
+  });
+
+  it("strips uniqueItems through flat, nested and namespace tool normalization", () => {
+    const parameters = { type: "object", properties: { uniqueItems: { type: "array", uniqueItems: true } } };
+    const tools = normalizeTools([
+      { type: "function", name: "flat", parameters },
+      { type: "function", function: { name: "nested", parameters } },
+      { type: "namespace", name: "ns", tools: [{ type: "function", name: "child", parameters }] },
+    ]);
+    const expected = { type: "object", properties: { uniqueItems: { type: "array" } } };
+    expect(tools[0].parameters).toEqual(expected);
+    expect(tools[1].parameters).toEqual(expected);
+    expect(tools[2].tools[0].parameters).toEqual(expected);
+    expect(parameters.properties.uniqueItems.uniqueItems).toBe(true);
   });
 });

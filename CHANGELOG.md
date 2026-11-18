@@ -2,6 +2,14 @@
 
 Next local beta: version set by the next release commit.
 
+## Features
+- **Antigravity**: add Gemini 4 Neon with low/medium/high/xhigh thinking and model-specific pricing; keep account availability controlled by live model discovery.
+- **Cloudflare System One**: add Clef, Clef Omni and Clairic extraction, `fields` payloads, and persisted custom upstream model IDs (PR #5749).
+
+## Fixes
+- **OpenCode Go validation**: include a stable key-derived session header in API-key probes (PR #5747).
+- **Codex**: strip unsupported `uniqueItems` while preserving property names/literals; correct GPT-6.2 Sol's default context to 500K and retain capabilities/pricing for thinking-suffixed 6.2 requests (referencing PR #5751). Preserve Astra's full Responses transport and existing token rates.
+
 ## Fixes
 - **Codex GPT-6.2**: use the Responses Lite request shape and supported thinking levels for Sol; add Sol/Astra `-1m` catalog variants using the existing context convention and Codex-specific capability limits (adapted from PR #5741).
 - **OpenCode free tier**: isolate upstream sessions by client identity/User-Agent; conceal additional gated tool names and Claude Code Edit/Read schema fingerprints with collision-safe request/response name restoration (PR #5725). Native OpenCode session IDs remain unchanged.

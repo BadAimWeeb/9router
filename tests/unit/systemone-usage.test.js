@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 const saved = vi.hoisted(() => vi.fn(async () => {}));
 vi.mock("@/lib/usageDb.js", () => ({ saveRequestUsage: saved }));
-vi.mock("@/lib/localDb", () => ({ getSettings: async () => ({}) }));
+vi.mock("@/lib/localDb", () => ({ getSettings: async () => ({}), getCustomModels: async () => [] }));
 vi.mock("../../src/sse/services/auth.js", () => ({
   getProviderCredentials: async () => ({ connectionId: "account", apiKey: "secret" }),
   extractApiKey: () => "client", isValidApiKey: async () => true,

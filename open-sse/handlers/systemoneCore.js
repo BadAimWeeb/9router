@@ -7,37 +7,20 @@ import { generateSessionId } from "../executors/opencode-zen.js";
 const OPENCODE_PROVIDERS = new Set(["opencode", "opencode-zen"]);
 
 function isPlainObject(value) {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
 }
 
-/**
- * Validate System One request payload at the trust boundary.
- * Decision models (Clef, Jev, Drex) take `questions`; extraction models such as
- * Cloudflare `@cf/cloudflare/clairic` declare `payloadShape: "fields"` and take
- * `fields` instead. Unregistered custom models accept either map shape.
- */
+// Known decision/extraction models require their native map; custom models accept either.
 export function validateSystemonePayload(body, provider, model, customPayloadShape = null) {
-  if (!body || body.state === undefined || body.state === null) {
-    return "Missing required field: state";
-  }
+  if (!isPlainObject(body)) return "Invalid JSON body";
+  if (body.state === undefined || body.state === null) return "Missing required field: state";
   const meta = provider && model ? getModelMeta(provider, model) : null;
   const shape = customPayloadShape || meta?.payloadShape || (meta ? "questions" : null);
-  if (shape === "fields") {
-    if (!isPlainObject(body.fields)) {
-      return "Missing required field: fields";
-    }
-    return null;
-  }
-  if (shape === "questions") {
-    if (!isPlainObject(body.questions)) {
-      return "Missing required field: questions";
-    }
-    return null;
-  }
-  if (!isPlainObject(body.questions) && !isPlainObject(body.fields)) {
-    return "Missing required field: questions";
-  }
-  return null;
+  if (shape === "fields") return isPlainObject(body.fields) ? null : "Missing required field: fields";
+  if (shape === "questions") return isPlainObject(body.questions) ? null : "Missing required field: questions";
+  return isPlainObject(body.questions) || isPlainObject(body.fields) ? null : "Missing required field: questions";
 }
 
 /**
@@ -96,11 +79,8 @@ export async function handleSystemoneCore({
     targetUrl = targetUrl.replace(/\{model\}/g, model);
   }
 
-  // Validate input at the trust boundary; field/question schema details are upstream's job.
   const payloadError = validateSystemonePayload(body, provider, model, customPayloadShape);
-  if (payloadError) {
-    return createErrorResult(HTTP_STATUS.BAD_REQUEST, payloadError);
-  }
+  if (payloadError) return createErrorResult(HTTP_STATUS.BAD_REQUEST, payloadError);
 
   // noAuth free lanes carry accessToken "public" from the credential stub.
   const token = credentials?.apiKey || credentials?.accessToken;
@@ -111,10 +91,8 @@ export async function handleSystemoneCore({
     // Zen lanes expect the official client session header; other providers don't need it.
     ...(OPENCODE_PROVIDERS.has(provider) ? { "x-opencode-session": generateSessionId() } : {}),
   };
-  // Cloudflare validates the body model as a short selector (e.g. "clef", "clef-omni", "clairic"), not the full id.
-  const customSelector = typeof customUpstreamModelId === "string" && customUpstreamModelId.trim()
-    ? customUpstreamModelId.trim()
-    : null;
+  // Cloudflare body selectors are short names; the URL retains the full model ID.
+  const customSelector = typeof customUpstreamModelId === "string" ? customUpstreamModelId.trim() : "";
   const requestBody = { ...body, model: customSelector || getModelUpstreamId(provider, model) || model };
 
   log?.debug?.("SYSTEMONE", `${provider.toUpperCase()} | ${model}`);

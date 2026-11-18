@@ -103,7 +103,7 @@ describe("handleSystemoneCore for nace", () => {
   it("returns the Drex reply unchanged (array legend, confidence) and maps usage", async () => {
     const r = await call("drex-max", { apiKey: "k" });
     expect(await r.result.response.json()).toEqual(upstreamReply);
-    expect(r.result.usage).toEqual({ prompt_tokens: 307, completion_tokens: 311 });
+    expect(r.result.usage).toEqual({ input_tokens: 307, output_tokens: 311, prompt_tokens: 307, completion_tokens: 311 });
   });
 
   it("uses a saved host override joined with the registry path", async () => {
