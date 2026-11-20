@@ -1,6 +1,7 @@
-# Unreleased
+# v0.5.120-beta.17 (2026-11-20)
 
 ## Features
+- **OpenRouter**: pin chat models to upstream providers with `model[provider]` or a saved per-model default; the model settings dialog lists live endpoints and shows the active override.
 - **Antigravity**: add Gemini 4 Neon with low/medium/high/xhigh thinking and model-specific pricing; keep account availability controlled by live model discovery.
 - **Cloudflare System One**: add Clef, Clef Omni and Clairic extraction, `fields` payloads, and persisted custom upstream model IDs (PR #5749).
 
