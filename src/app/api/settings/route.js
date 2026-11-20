@@ -48,6 +48,8 @@ export async function PATCH(request) {
 
     // Strip protected secrets before any internal handling sets them
     for (const key of PROTECTED_SETTING_KEYS) delete body[key];
+    // Update model defaults through the validated per-model route, not a map replacement.
+    delete body.openrouterProviderDefaults;
 
     // If updating password, hash it
     if (body.newPassword) {

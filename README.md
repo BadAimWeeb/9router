@@ -489,6 +489,14 @@ Default URLs:
   <p><i>...and 20+ more providers including Nebius, Chutes, Hyperbolic, and custom OpenAI/Anthropic compatible endpoints</i></p>
 </div>
 
+#### OpenRouter upstream provider overrides
+
+In **Providers → OpenRouter → Available Models**, click the **settings gear** on a chat model (use **Add Model** if it isn't listed). The dialog fetches the model's endpoints live from OpenRouter. Pick an endpoint and click **Save default**; the active override appears next to the model name. To remove it, save **Automatic (OpenRouter chooses)**. Changes apply without a restart.
+
+For chat requests, append an [OpenRouter provider slug](https://openrouter.ai/docs/guides/routing/provider-selection) to the model ID: `openrouter/google/gemini-2.5-flash[google-vertex/us-east5]`. 9Router sends `google/gemini-2.5-flash` as the upstream model and `"provider": { "only": ["google-vertex/us-east5"] }`.
+
+Precedence: a request tag wins over the dashboard setting, which wins over `defaultUpstreamProvider` in the [OpenRouter registry](open-sse/providers/registry/openrouter.js). **Automatic** explicitly disables the registry default for that model. Without an override, 9Router omits `provider`.
+
 ### 🏠 Self-hosted Providers
 
 For speech and embeddings served from **your own** machine — whisper.cpp,

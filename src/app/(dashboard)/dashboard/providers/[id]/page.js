@@ -9,6 +9,7 @@ import { Card, Button, Badge, Input, Modal, CardSkeleton, OAuthModal, KiroOAuthW
 import { OAUTH_PROVIDERS, APIKEY_PROVIDERS, FREE_PROVIDERS, FREE_TIER_PROVIDERS, WEB_COOKIE_PROVIDERS, getProviderAlias, isOpenAICompatibleProvider, isAnthropicCompatibleProvider, AI_PROVIDERS } from "@/shared/constants/providers";
 import { getModelsByProviderId, getModelKind } from "@/shared/constants/models";
 import { getThinkingLevels } from "open-sse/providers/thinkingLevels.js";
+import { getModelMeta } from "open-sse/config/providerModels.js";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import { useModelCaps } from "@/shared/hooks/useModelCaps";
 import { translate } from "@/i18n/runtime";
@@ -17,6 +18,7 @@ import { applyQoderModelNames, getProviderCustomModelRows } from "@/shared/utils
 import ModelRow from "./ModelRow";
 import PassthroughModelsSection from "./PassthroughModelsSection";
 import CompatibleModelsSection from "./CompatibleModelsSection";
+import OpenRouterUpstreamProvider from "./OpenRouterUpstreamProvider";
 import ConnectionRow from "./ConnectionRow";
 import AddApiKeyModal from "./AddApiKeyModal";
 import EditCompatibleNodeModal from "./EditCompatibleNodeModal";
@@ -77,6 +79,8 @@ export default function ProviderDetailPage() {
   const [providerStickyLimit, setProviderStickyLimit] = useState("");
   const [strategyError, setStrategyError] = useState("");
   const [thinkingMode, setThinkingMode] = useState("auto");
+  const [upstreamProviderDefaults, setUpstreamProviderDefaults] = useState({});
+  const [upstreamProviderModel, setUpstreamProviderModel] = useState(null);
   const [autoPing, setAutoPing] = useState({ enabled: false, connections: {}, schedules: {} });
   const [scheduleConnection, setScheduleConnection] = useState(null);
   const [suggestedModels, setSuggestedModels] = useState([]);
@@ -336,6 +340,9 @@ export default function ProviderDetailPage() {
       // Load per-provider thinking config
       const thinkingCfg = (settingsData.providerThinking || {})[providerId] || {};
       setThinkingMode(thinkingCfg.mode || "auto");
+      if (providerId === "openrouter" && settingsRes.ok) {
+        setUpstreamProviderDefaults(settingsData.openrouterProviderDefaults || {});
+      }
       const autoPingSettingsKey = AUTO_PING_SETTINGS_KEYS[providerId];
       const apCfg = autoPingSettingsKey ? settingsData[autoPingSettingsKey] || {} : {};
       setAutoPing({ enabled: apCfg.enabled === true, connections: apCfg.connections || {}, schedules: apCfg.schedules || {} });
@@ -1228,6 +1235,10 @@ export default function ProviderDetailPage() {
       type: "llm",
     });
 
+    const upstreamProvider = (modelId) => providerId !== "openrouter" ? undefined
+      : Object.hasOwn(upstreamProviderDefaults, modelId) ? upstreamProviderDefaults[modelId]
+      : getModelMeta(providerId, modelId)?.defaultUpstreamProvider;
+
     return (
       <div className="flex flex-wrap gap-3">
         {/* Custom models first */}
@@ -1254,6 +1265,8 @@ export default function ProviderDetailPage() {
             isFree={false}
             caps={getCaps(`${providerId}/${model.id}`)}
             thinkingSuffix={resolveThinkingSuffix(model.id)}
+            onConfigure={providerId === "openrouter" ? () => setUpstreamProviderModel(model.id) : undefined}
+            upstreamProvider={upstreamProvider(model.id)}
           />
         ))}
 
@@ -1280,6 +1293,8 @@ export default function ProviderDetailPage() {
               onDisable={() => handleDisableModel(model.id)}
               caps={getCaps(`${providerId}/${model.id}`)}
               thinkingSuffix={resolveThinkingSuffix(model.id)}
+              onConfigure={providerId === "openrouter" ? () => setUpstreamProviderModel(model.id) : undefined}
+              upstreamProvider={upstreamProvider(model.id)}
             />
           );
         })}
@@ -1895,6 +1910,17 @@ export default function ProviderDetailPage() {
       {bulkActionModal}
 
       {/* Modals */}
+      {providerId === "openrouter" && upstreamProviderModel && (
+        <OpenRouterUpstreamProvider
+          key={upstreamProviderModel}
+          modelId={upstreamProviderModel}
+          onClose={() => setUpstreamProviderModel(null)}
+          onSave={(slug) => {
+            setUpstreamProviderDefaults((current) => ({ ...current, [upstreamProviderModel]: slug }));
+            setUpstreamProviderModel(null);
+          }}
+        />
+      )}
       {providerId === "kiro" ? (
         <KiroOAuthWrapper
           isOpen={showOAuthModal}
