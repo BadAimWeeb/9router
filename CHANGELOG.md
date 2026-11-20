@@ -1,3 +1,9 @@
+# v0.5.120-beta.18 (2026-11-20)
+
+## Fixes
+- **OpenCode Free**: sync the client with OpenCode v2.3.2 and use the current OpenAI and Anthropic inference paths (PR #5776).
+
+
 # v0.5.120-beta.17 (2026-11-20)
 
 ## Features
