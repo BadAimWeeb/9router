@@ -28,6 +28,14 @@ export function resolveProviderAlias(aliasOrId) {
   return ALIAS_TO_PROVIDER_ID[aliasOrId] || aliasOrId;
 }
 
+function resolveModel(provider, model) {
+  // ponytail: strip a single trailing OpenRouter slug; endpoint availability is checked upstream.
+  const tag = provider === "openrouter" && typeof model === "string"
+    ? /^(.+)\[([a-z0-9-]+(?:\/[a-z0-9-]+)*)\]$/.exec(model)
+    : null;
+  return tag ? { provider, model: tag[1], upstreamProvider: tag[2] } : { provider, model };
+}
+
 /**
  * Parse model string: "alias/model" or "provider/model" or just alias
  */
@@ -42,7 +50,7 @@ export function parseModel(modelStr) {
     const providerOrAlias = modelStr.slice(0, firstSlash);
     const model = modelStr.slice(firstSlash + 1);
     const provider = resolveProviderAlias(providerOrAlias);
-    return { provider, model, isAlias: false, providerAlias: providerOrAlias };
+    return { ...resolveModel(provider, model), isAlias: false, providerAlias: providerOrAlias };
   }
 
   // Alias format (model alias, not provider alias)
@@ -67,20 +75,13 @@ export function resolveModelAliasFromMap(alias, aliases) {
 
   // Resolved value is "provider/model" format
   if (typeof resolved === "string" && resolved.includes("/")) {
-    const firstSlash = resolved.indexOf("/");
-    const providerOrAlias = resolved.slice(0, firstSlash);
-    return {
-      provider: resolveProviderAlias(providerOrAlias),
-      model: resolved.slice(firstSlash + 1),
-    };
+    const { provider, model, upstreamProvider } = parseModel(resolved);
+    return upstreamProvider ? { provider, model, upstreamProvider } : { provider, model };
   }
 
   // Or object { provider, model }
   if (typeof resolved === "object" && resolved.provider && resolved.model) {
-    return {
-      provider: resolveProviderAlias(resolved.provider),
-      model: resolved.model,
-    };
+    return resolveModel(resolveProviderAlias(resolved.provider), resolved.model);
   }
 
   return null;
@@ -92,14 +93,8 @@ export function resolveModelAliasFromMap(alias, aliases) {
  * @param {object|function} aliasesOrGetter - Aliases object or async function to get aliases
  */
 export async function getModelInfoCore(modelStr, aliasesOrGetter) {
-  const parsed = parseModel(modelStr);
-
-  if (!parsed.isAlias) {
-    return {
-      provider: parsed.provider,
-      model: parsed.model,
-    };
-  }
+  const { isAlias, providerAlias, ...parsed } = parseModel(modelStr);
+  if (!isAlias) return parsed;
 
   // Get aliases (from object or function)
   const aliases =

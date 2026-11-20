@@ -1,7 +1,7 @@
 import PropTypes from "prop-types";
 import { CapacityBadges } from "@/shared/components";
 
-export default function ModelRow({ model, fullModel, alias, copied, onCopy, testStatus, isCustom, isFree, onDeleteAlias, onTest, isTesting, onDisable, caps, thinkingSuffix }) {
+export default function ModelRow({ model, fullModel, alias, copied, onCopy, testStatus, isCustom, isFree, onDeleteAlias, onTest, isTesting, onDisable, caps, thinkingSuffix, onConfigure, upstreamProvider }) {
   const displayModel = thinkingSuffix ? `${fullModel}(${thinkingSuffix})` : fullModel;
   const borderColor = testStatus === "ok"
     ? "border-green-500/40"
@@ -28,10 +28,16 @@ export default function ModelRow({ model, fullModel, alias, copied, onCopy, test
           <code className="w-fit max-w-full break-all rounded bg-sidebar px-1.5 py-0.5 font-mono text-xs text-text-muted sm:max-w-[360px] sm:truncate">{displayModel}</code>
           <span className="flex min-w-0 items-center text-[9px] gap-1 pl-1">
             {model.name && <span className="break-all sm:truncate text-[9px] italic text-text-muted/70">{model.name}</span>}
+            {upstreamProvider && <span className="break-all text-primary" title="Upstream provider override">({upstreamProvider})</span>}
             <CapacityBadges caps={caps} colorOverride="text-text-muted/70" size={12} />
           </span>
         </div>
         <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
+          {onConfigure && (
+            <button type="button" onClick={onConfigure} aria-label={`Configure upstream provider for ${model.id}`} title="Configure upstream provider" className="rounded p-0.5 text-text-muted hover:bg-sidebar hover:text-primary">
+              <span className="material-symbols-outlined text-sm" aria-hidden="true">settings</span>
+            </button>
+          )}
           {onTest && (
             <div className="relative shrink-0 group/btn">
               <button
@@ -95,6 +101,8 @@ ModelRow.propTypes = {
   testStatus: PropTypes.oneOf(["ok", "error"]),
   isCustom: PropTypes.bool,
   isFree: PropTypes.bool,
+  onConfigure: PropTypes.func,
+  upstreamProvider: PropTypes.string,
   onDeleteAlias: PropTypes.func,
   onTest: PropTypes.func,
   isTesting: PropTypes.bool,

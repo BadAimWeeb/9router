@@ -322,7 +322,8 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     const providerThinking = (chatSettings.providerThinking || {})[provider] || null;
     const result = await handleChatCore({
       body: { ...body, model: `${provider}/${model}` },
-      modelInfo: { provider, model },
+      modelInfo,
+      openrouterProviderDefaults: provider === "openrouter" ? chatSettings.openrouterProviderDefaults : undefined,
       credentials: refreshedCredentials,
       log,
       clientRawRequest,
