@@ -1,16 +1,20 @@
-# Unreleased
+# v0.5.124-beta.1 (2026-11-24)
 
-Next local beta: version set by the next release commit.
+## Upstream
+- Rebase third-party and local changes onto decolua/9router `5ae63d22` (v0.5.123), dropping local commits already implemented upstream (Gemini 4 Hydrogen + long decode, Antigravity Hermes/OpenClaw fake-429 fixes, Codex GPT-6.2 model registration, upstream TTS `options` pass-through).
 
 ## Features
 - **Antigravity**: add Gemini 4 Neon with low/medium/high/xhigh thinking and model-specific pricing; keep account availability controlled by live model discovery.
 - **Cloudflare System One**: add Clef, Clef Omni and Clairic extraction, `fields` payloads, and persisted custom upstream model IDs (PR #5749).
+- **Codex**: add GPT-6.2 Sol and Astra upstream IDs; explicit `cx/` or `codex/` prefixes select OAuth while bare IDs retain OpenAI API routing.
+- **OpenAI**: add GPT-6.2 Sol and Astra from PR #5737 with API-scoped capabilities/pricing and exact bare-ID routing, including thinking suffixes. Preserve explicit providers, aliases and neighboring Codex routes.
+- **Free-tier providers**: add Cohere chat, multimodal embeddings and transcription using evaluation API keys; add Pollinations chat, embeddings, images/edits, speech, transcription, decisions and realtime, with native video job routing when an eligible model is available. Populate supported models automatically from the live catalogs in provider pages, selectors and `/v1/models`; exclude deprecated/ineligible Cohere models and Pollinations paid-only models. Free-tier allowances, key permissions and account budgets still apply.
+- **OpenRouter**: pin chat models to upstream providers with `model[provider]` or a saved per-model default; the model settings dialog lists live endpoints and shows the active override.
 
 ## Fixes
+- **OpenCode Free**: sync the client with OpenCode v2.3.2 and use the current OpenAI and Anthropic inference paths (PR #5776).
 - **OpenCode Go validation**: include a stable key-derived session header in API-key probes (PR #5747).
 - **Codex**: strip unsupported `uniqueItems` while preserving property names/literals; correct GPT-6.2 Sol's default context to 500K and retain capabilities/pricing for thinking-suffixed 6.2 requests (referencing PR #5751). Preserve Astra's full Responses transport and existing token rates.
-
-## Fixes
 - **Codex GPT-6.2**: use the Responses Lite request shape and supported thinking levels for Sol; add Sol/Astra `-1m` catalog variants using the existing context convention and Codex-specific capability limits (adapted from PR #5741).
 - **OpenCode free tier**: isolate upstream sessions by client identity/User-Agent; conceal additional gated tool names and Claude Code Edit/Read schema fingerprints with collision-safe request/response name restoration (PR #5725). Native OpenCode session IDs remain unchanged.
 - **Claude streaming usage**: forward cache read/write details to OpenAI clients, including `message_stop` fallback; keep the client token buffer out of recorded usage and fold cache tokens into persisted totals only once (adapted from PR #5743).
@@ -18,29 +22,17 @@ Next local beta: version set by the next release commit.
 - **Antigravity**: strip/rewrite Claude Code prompt fingerprints that trigger fake 429 responses (PR #5733); use the live per-account catalog and hide disabled/internal models in provider model discovery (PR #5734).
 - **Kimi Code**: recognize K3.1 Pro and Highspeed IDs with 1,048,576-token context metadata (PR #5722).
 - **Codex images**: resize individual inline and fetched images exceeding 30,000 32×32 patches before forwarding. Preserve aspect ratio and requested detail; images within the limit remain unchanged. Install Sharp directly for server and CLI image processing.
-
-## Features
-- **Codex**: add GPT-6.2 Sol and Astra upstream IDs; explicit `cx/` or `codex/` prefixes select OAuth while bare IDs retain OpenAI API routing.
-- **OpenAI**: add GPT-6.2 Sol and Astra from PR #5737 with API-scoped capabilities/pricing and exact bare-ID routing, including thinking suffixes. Preserve explicit providers, aliases and neighboring Codex routes.
-- **Free-tier providers**: add Cohere chat, multimodal embeddings and transcription using evaluation API keys; add Pollinations chat, embeddings, images/edits, speech, transcription, decisions and realtime, with native video job routing when an eligible model is available. Populate supported models automatically from the live catalogs in provider pages, selectors and `/v1/models`; exclude deprecated/ineligible Cohere models and Pollinations paid-only models. Free-tier allowances, key permissions and account budgets still apply.
-
-## Fixes
 - **Pollinations pricing**: automatically list only explicitly zero-priced models; Quest-eligible or unknown-price models are opt-in suggestions, never automatically enabled.
 - **Pollinations**: recognize currency-only Pollen pricing as charge-free, so `stealth/glyph-cluster` appears automatically; missing pricing and nonzero charges remain suggestions.
 - **Model discovery**: load Pollinations' public catalog without requiring a saved connection, populate Cohere/Pollinations media model cards from live discovery, preserve successful empty catalogs and display discovery failures.
 - **Thinking**: map an `ultra` effort to `high` on Gemini level-based models without an `xhigh` tier, instead of letting it fall through to the lowest level.
-
-
-## Fixes
 - **Usage**: prompt-retention captures no longer break on large Anthropic `/v1/messages` requests. Retained payloads use a dedicated cap (`OBSERVABILITY_RETENTION_MAX_JSON_SIZE`, default 10MB) instead of the 5KB disk-observability limit, so Original/Client/Translated views stay renderable for real Claude Code bodies, and a client disconnect mid-stream now finalizes the capture instead of leaving the response placeholder empty forever.
 - **Usage**: Original and Client views now show the system prompt. Anthropic `/v1/messages` carries it in a top-level `system` field (string or content-block array) that the message extractor ignored; it is prepended as the first system-role message, along with Responses `instructions` and Gemini `systemInstruction`. OpenAI-wire bodies (system already inside `messages[]`) are unchanged.
 
-## Features
-- **Dashboard**: hide the 9Remote and 9English sidebar promo buttons via environment — `NINEROUTER_HIDE_PROMOS=true` hides both, `NINEROUTER_HIDE_9REMOTE=true` / `NINEROUTER_HIDE_9ENGLISH=true` hide one; the flags surface through `/api/settings`.
-- **Endpoint**: restructure the API keys management list — key names gain an inline rename editor (edit icon, Enter saves, Escape cancels; `PUT /api/keys/[id]` accepts a validated name) and delete refreshes the list and consent panel in place.
-- **Usage**: log prompt-retention consent changes with attribution (key name + masked key, never the raw key) — dashboard toggles, key creation, pause/delete revocations, database imports, and server restarts all land in a 200-entry activity ring shown as a collapsible panel on the API Endpoint page and mirrored to the server log as `[PromptRetention]` lines.
-- Add per-API-key opt-in chat prompt/request/response debugging retention, disabled for new and existing keys. Captures stay in process memory for at most one hour, bounded by observability record/JSON limits, and appear in Usage request details only for signed-in dashboard users. Enable "Retain prompts for debugging" on the API Endpoint page, or send `promptRetentionEnabled: true` when creating/updating a key. Enabling a key is sufficient; global observability/logging flags never grant consent.
-- Disabling retention, pausing/deleting a key, importing keys, or restarting clears captured payloads; in-flight requests cannot restore data after revocation. Disk request details now hold metadata only; startup strips legacy request-detail payloads. Automatic unbounded `logs/` request dumps are removed. Previously created log files, external backups, and copies already downloaded by dashboard users are not erased.
+## Features (carried from earlier betas)
+- Per-API-key opt-in chat prompt/request/response debugging retention with consent logging and a structured debug viewer; disabling retention, pausing/deleting a key, importing keys, or restarting clears captured payloads. Disk request details now hold metadata only; automatic unbounded `logs/` request dumps are removed.
+- Dashboard: hide the 9Remote and 9English sidebar promo buttons via environment — `NINEROUTER_HIDE_PROMOS=true` hides both, `NINEROUTER_HIDE_9REMOTE=true` / `NINEROUTER_HIDE_9ENGLISH=true` hide one; the flags surface through `/api/settings`.
+- Endpoint: restructure the API keys management list — key names gain an inline rename editor (edit icon, Enter saves, Escape cancels; `PUT /api/keys/[id]` accepts a validated name) and delete refreshes the list and consent panel in place.
 
 # v0.5.123 (2026-11-22)
 
