@@ -20,6 +20,7 @@ import Tooltip from "./components/Tooltip";
 import SecurityWarning from "./components/SecurityWarning";
 import KeyAccessControls from "./components/KeyAccessControls";
 import QuotaAccessControls from "./components/QuotaAccessControls";
+import KeyPromptOverrideControls from "./components/KeyPromptOverrideControls";
 export default function APIPageClient({ machineId }) {
   const [keys, setKeys] = useState([]);
   const [promptRetentionStatus, setPromptRetentionStatus] = useState({});
@@ -803,10 +804,52 @@ export default function APIPageClient({ machineId }) {
     }
   };
 
+  const handleUpdateTokenSaverOverride = async (id, tokenSaverOverride) => {
+    try {
+      const res = await fetch(`/api/keys/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tokenSaverOverride }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.key?.tokenSaverOverride !== tokenSaverOverride) {
+        throw new Error(data.error || "Failed to update token saver setting");
+      }
+      setKeys(prev => prev.map(key => key.id === id
+        ? { ...key, tokenSaverOverride: data.key.tokenSaverOverride }
+        : key));
+    } catch (error) {
+      console.error("Failed to update token saver setting:", error);
+    }
+  };
+
+  const handleUpdatePromptOverride = async (id, customPromptOverride) => {
+    try {
+      const res = await fetch(`/api/keys/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ customPromptOverride }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to update prompt override");
+      }
+      setKeys(prev => prev.map(key => key.id === id
+        ? { ...key, customPromptOverride: data.key.customPromptOverride }
+        : key));
+    } catch (error) {
+      console.error("Failed to update prompt override:", error);
+    }
+  };
+
   const maskKey = (fullKey) => {
     if (!fullKey || fullKey.length <= 10) return fullKey || "";
     return fullKey.slice(0, 6) + "•".repeat(fullKey.length - 10) + fullKey.slice(-4);
   };
+
+  // Stable fingerprint of a key's prompt override, used to remount the editor
+  // when the saved value changes (including from another tab).
+  const overrideFingerprint = (o) => (o ? `${o.enabled ? 1 : 0}:${(o.prompt || "").length}` : "global");
 
   const toggleKeyVisibility = (keyId) => {
     setVisibleKeys(prev => {
@@ -1234,6 +1277,28 @@ export default function APIPageClient({ machineId }) {
                       <code> -1m</code> id on <code>/v1/models</code>. Requests with either suffix route to the same upstream model.
                     </p>
                   </div>
+                  <div className="mt-3">
+                    <label className="flex items-center gap-2 text-sm">
+                      <span>Token savers (RTK, headroom, caveman, ponytail):</span>
+                      <select
+                        value={key.tokenSaverOverride === "off" ? "off" : "inherit"}
+                        onChange={(event) => handleUpdateTokenSaverOverride(key.id, event.target.value)}
+                        className="px-2 py-1 text-sm border border-border rounded-lg bg-background focus:outline-none focus:border-primary"
+                      >
+                        <option value="inherit">Follow global settings</option>
+                        <option value="off">Always off for this key</option>
+                      </select>
+                    </label>
+                    <p className="text-xs text-text-muted mt-1">
+                      &quot;Always off&quot; disables every token-saving prompt rewrite for requests made with this key,
+                      even when globally enabled; the client <code>x-9router-token-saver</code> header cannot re-enable them.
+                    </p>
+                  </div>
+                  <KeyPromptOverrideControls
+                    key={`${key.id}:${overrideFingerprint(key.customPromptOverride)}`}
+                    apiKey={key}
+                    onChange={(customPromptOverride) => handleUpdatePromptOverride(key.id, customPromptOverride)}
+                  />
                   <QuotaAccessControls
                     apiKey={key}
                     onChange={(quotaAccess) => handleUpdateQuotaAccess(key.id, quotaAccess)}

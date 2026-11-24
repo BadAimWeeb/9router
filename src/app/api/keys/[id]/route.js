@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { deleteApiKey, getApiKeyById, updateApiKey } from "@/lib/localDb";
+import { deleteApiKey, getApiKeyById, updateApiKey, validateCustomPromptOverride } from "@/lib/localDb";
 import { validateKeyAccessInput } from "@/shared/utils/keyAccess.js";
 import { QUOTA_ACCESS_MODES } from "@/shared/utils/quotaAccess.js";
 import { recordRetentionChange, maskKeyForDisplay } from "@/lib/promptRetention.js";
@@ -24,12 +24,22 @@ export async function PUT(request, { params }) {
   try {
     const { id } = await params;
     const body = await request.json();
-    const { isActive, access, quotaAccess, promptRetentionEnabled, announce1mVariants, name } = body;
+    const { isActive, access, quotaAccess, promptRetentionEnabled, announce1mVariants, tokenSaverOverride, customPromptOverride, name } = body;
     if (Object.hasOwn(body, "promptRetentionEnabled") && typeof promptRetentionEnabled !== "boolean") {
       return NextResponse.json({ error: "promptRetentionEnabled must be a boolean" }, { status: 400 });
     }
     if (Object.hasOwn(body, "announce1mVariants") && typeof announce1mVariants !== "boolean") {
       return NextResponse.json({ error: "announce1mVariants must be a boolean" }, { status: 400 });
+    }
+    if (Object.hasOwn(body, "tokenSaverOverride") && !["inherit", "off"].includes(tokenSaverOverride)) {
+      return NextResponse.json({ error: "tokenSaverOverride must be \"inherit\" or \"off\"" }, { status: 400 });
+    }
+    if (Object.hasOwn(body, "customPromptOverride")) {
+      try {
+        validateCustomPromptOverride(customPromptOverride ?? null);
+      } catch (error) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
     }
     if (Object.hasOwn(body, "name")) {
       if (typeof name !== "string" || !name.trim()) {
@@ -50,6 +60,8 @@ export async function PUT(request, { params }) {
     if (Object.hasOwn(body, "name")) updateData.name = name.trim();
     if (promptRetentionEnabled !== undefined) updateData.promptRetentionEnabled = promptRetentionEnabled;
     if (announce1mVariants !== undefined) updateData.announce1mVariants = announce1mVariants;
+    if (tokenSaverOverride !== undefined) updateData.tokenSaverOverride = tokenSaverOverride;
+    if (Object.hasOwn(body, "customPromptOverride")) updateData.customPromptOverride = customPromptOverride ?? null;
     if (access !== undefined) {
       const checked = validateKeyAccessInput(access);
       if (!checked.ok) return NextResponse.json({ error: checked.error }, { status: 400 });

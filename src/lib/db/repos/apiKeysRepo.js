@@ -4,6 +4,7 @@ import { keyAccessFromColumns, keyAccessToColumns } from "@/shared/utils/keyAcce
 import { normalizeQuotaAccess, QUOTA_ACCESS_NONE } from "@/shared/utils/quotaAccess.js";
 import { KEY_ACCESS_UNRESTRICTED } from "@/shared/constants/keyAccess.js";
 import { purgeRetainedPrompts } from "@/lib/promptRetention.js";
+import { parseJson, stringifyJson } from "../helpers/jsonCol.js";
 
 function rowToKey(row) {
   if (!row) return null;
@@ -15,10 +16,28 @@ function rowToKey(row) {
     isActive: row.isActive === 1 || row.isActive === true,
     promptRetentionEnabled: row.promptRetentionEnabled === 1 || row.promptRetentionEnabled === true,
     announce1mVariants: row.announce1mVariants === 1 || row.announce1mVariants === true,
+    tokenSaverOverride: row.tokenSaverOverride === "off" ? "off" : "inherit",
+    customPromptOverride: parseJson(row.customPromptOverride, null),
     createdAt: row.createdAt,
     access: keyAccessFromColumns(row.accessRestricted, row.accessAllow),
     quotaAccess: normalizeQuotaAccess(row.quotaAccess),
   };
+}
+
+// Validate the per-key custom prompt override payload: null (follow global
+// settings) or { enabled: boolean, prompt: string }. Throws on malformed input.
+export function validateCustomPromptOverride(value) {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("customPromptOverride must be null or { enabled, prompt }");
+  }
+  if (typeof value.enabled !== "boolean" || typeof value.prompt !== "string") {
+    throw new Error("customPromptOverride must be { enabled: boolean, prompt: string }");
+  }
+  if (value.prompt.length > 20000) {
+    throw new Error("customPromptOverride.prompt must be at most 20000 characters");
+  }
+  return { enabled: value.enabled, prompt: value.prompt };
 }
 
 export async function getApiKeys() {
@@ -54,6 +73,8 @@ export async function createApiKey(name, machineId) {
     isActive: true,
     promptRetentionEnabled: false,
     announce1mVariants: false,
+    tokenSaverOverride: "inherit",
+    customPromptOverride: null,
     createdAt: new Date().toISOString(),
     access: { restricted: false, allow: [] },
   };
@@ -72,6 +93,13 @@ export async function updateApiKey(id, data) {
   if (Object.hasOwn(data, "announce1mVariants") && typeof data.announce1mVariants !== "boolean") {
     throw new Error("announce1mVariants must be a boolean");
   }
+  if (Object.hasOwn(data, "tokenSaverOverride") && !["inherit", "off"].includes(data.tokenSaverOverride)) {
+    throw new Error("tokenSaverOverride must be \"inherit\" or \"off\"");
+  }
+  if (Object.hasOwn(data, "customPromptOverride")) {
+    validateCustomPromptOverride(data.customPromptOverride);
+    if (data.customPromptOverride === undefined) data = { ...data, customPromptOverride: null };
+  }
   const db = await getAdapter();
   let result = null;
   db.transaction(() => {
@@ -81,8 +109,16 @@ export async function updateApiKey(id, data) {
     const cols = keyAccessToColumns(merged.access);
     const quotaAccess = normalizeQuotaAccess(data.quotaAccess !== undefined ? data.quotaAccess : row.quotaAccess);
     db.run(
-      `UPDATE apiKeys SET key = ?, name = ?, machineId = ?, isActive = ?, accessRestricted = ?, accessAllow = ?, quotaAccess = ?, promptRetentionEnabled = ?, announce1mVariants = ? WHERE id = ?`,
-      [merged.key, merged.name, merged.machineId, merged.isActive ? 1 : 0, cols.accessRestricted, cols.accessAllow, quotaAccess, merged.promptRetentionEnabled === true ? 1 : 0, merged.announce1mVariants === true ? 1 : 0, id]
+      `UPDATE apiKeys SET key = ?, name = ?, machineId = ?, isActive = ?, accessRestricted = ?, accessAllow = ?, quotaAccess = ?, promptRetentionEnabled = ?, announce1mVariants = ?, tokenSaverOverride = ?, customPromptOverride = ? WHERE id = ?`,
+      [
+        merged.key, merged.name, merged.machineId, merged.isActive ? 1 : 0,
+        cols.accessRestricted, cols.accessAllow, quotaAccess,
+        merged.promptRetentionEnabled === true ? 1 : 0,
+        merged.announce1mVariants === true ? 1 : 0,
+        merged.tokenSaverOverride === "off" ? "off" : "inherit",
+        merged.customPromptOverride ? stringifyJson(merged.customPromptOverride) : null,
+        id,
+      ]
     );
     result = rowToKey(db.get(`SELECT * FROM apiKeys WHERE id = ?`, [id]));
   });

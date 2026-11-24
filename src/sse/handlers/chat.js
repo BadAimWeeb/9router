@@ -64,10 +64,6 @@ export async function handleChat(request, clientRawRequest = null) {
   const { model: modelStr, contextMarker } = stripModelContextMarker(body.model);
   if (contextMarker) body.model = modelStr;
   let announceMarker = contextMarker || null;
-  if (contextMarker && contextMarker.toLowerCase() === "1m" && hasOneMCatalogVariant(modelStr)) {
-    body.model = `${modelStr}-1m`;
-    announceMarker = null;
-  }
 
   const session = resolveSessionIdentity({ headers: clientRawRequest?.headers, body });
   const sessionId = session?.sessionId || null;
@@ -77,6 +73,13 @@ export async function handleChat(request, clientRawRequest = null) {
   // Log API key (masked)
   const authHeader = request.headers.get("Authorization");
   const apiKey = extractApiKey(request);
+  // One fetch per request: drives the 1m announcement, token-saver override and
+  // custom prompt override below.
+  const keyRecord = await resolveApiKeyRecord(apiKey);
+  if (contextMarker && contextMarker.toLowerCase() === "1m" && hasOneMCatalogVariant(modelStr)) {
+    body.model = `${modelStr}-1m`;
+    announceMarker = null;
+  }
   if (authHeader && apiKey) {
     const masked = log.maskKey(apiKey);
     log.debug("AUTH", `API Key: ${masked}`);
@@ -138,7 +141,7 @@ export async function handleChat(request, clientRawRequest = null) {
             const { tools, tool_choice, ...cleanBody } = clientRawRequest.body || {};
             cleanRawReq = { ...clientRawRequest, body: cleanBody };
           }
-          return handleSingleModelChat(b, m, cleanRawReq, request, apiKey);
+          return handleSingleModelChat(b, m, cleanRawReq, request, apiKey, null, keyRecord);
         },
         log,
         comboName: modelStr,
@@ -154,7 +157,7 @@ export async function handleChat(request, clientRawRequest = null) {
       body,
       models: augmentedModels,
       handleSingleModel: withCapacityAdapterStripping(
-        (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey),
+        (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, null, keyRecord),
         adapterAdded
       ),
       log,
@@ -188,7 +191,7 @@ export async function handleChat(request, clientRawRequest = null) {
       body,
       models: soloAugmented,
       handleSingleModel: withCapacityAdapterStripping(
-        (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey),
+        (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, null, keyRecord),
         adapterAdded
       ),
       log,
@@ -197,29 +200,45 @@ export async function handleChat(request, clientRawRequest = null) {
     });
   }
 
-  const wantsMarkerAnnounce = announceMarker ? await keyPrefers1mMarkerAnnounce(apiKey) : false;
+  const wantsMarkerAnnounce = announceMarker ? keyRecord?.announce1mVariants === true : false;
   const announceTarget = wantsMarkerAnnounce && hasOneMCatalogVariant(modelStr)
     ? `${modelStr}[1m]`
     : null;
-  return handleSingleModelChat(body, modelStr, clientRawRequest, request, apiKey, announceTarget);
+  return handleSingleModelChat(body, modelStr, clientRawRequest, request, apiKey, announceTarget, keyRecord);
 }
 
-// True when the presented key opted into announcing Codex extended-context
-// variants as `[1m]` (the Claude Code marker) instead of the `-1m` id.
-async function keyPrefers1mMarkerAnnounce(apiKey) {
-  if (!apiKey) return false;
+// Fetch the presented key's record once per request; null for local/unknown keys.
+async function resolveApiKeyRecord(apiKey) {
+  if (!apiKey) return null;
   try {
-    const record = await getApiKeyByKey(apiKey);
-    return record?.announce1mVariants === true;
+    return await getApiKeyByKey(apiKey);
   } catch {
-    return false;
+    return null;
   }
 }
 
 /**
- * Handle single model chat request
+ * Resolve the chat feature flags for a request's key: the key record's
+ * tokenSaverOverride forces the savers off, and customPromptOverride replaces
+ * the global custom prompt pair. Pure so it is testable without the handler.
+ * @param {object|null} keyRecord row from getApiKeyByKey()
+ * @param {object} chatSettings global settings
  */
-async function handleSingleModelChat(body, modelStr, clientRawRequest = null, request = null, apiKey = null, requestedModel = null) {
+export function resolveKeyFeatureFlags(keyRecord, chatSettings) {
+  const tokenSaverForcedOff = keyRecord?.tokenSaverOverride === "off";
+  const keyPromptOverride = keyRecord?.customPromptOverride || null;
+  return {
+    tokenSaverForcedOff,
+    rtkEnabled: !tokenSaverForcedOff && !!chatSettings.rtkEnabled,
+    headroomEnabled: !tokenSaverForcedOff && !!chatSettings.headroomEnabled,
+    cavemanEnabled: !tokenSaverForcedOff && !!chatSettings.cavemanEnabled,
+    ponytailEnabled: !tokenSaverForcedOff && !!chatSettings.ponytailEnabled,
+    customPromptEnabled: keyPromptOverride ? keyPromptOverride.enabled === true : !!chatSettings.customPromptEnabled,
+    customPrompt: keyPromptOverride ? keyPromptOverride.prompt || "" : chatSettings.customPrompt || "",
+  };
+}
+
+async function handleSingleModelChat(body, modelStr, clientRawRequest = null, request = null, apiKey = null, requestedModel = null, keyRecord = null) {
   const modelInfo = await getModelInfo(modelStr);
 
   // If provider is null, this might be a combo name - check and handle
@@ -249,7 +268,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
               const { tools, tool_choice, ...cleanBody } = clientRawRequest.body || {};
               cleanRawReq = { ...clientRawRequest, body: cleanBody };
             }
-            return handleSingleModelChat(b, m, cleanRawReq, request, apiKey);
+            return handleSingleModelChat(b, m, cleanRawReq, request, apiKey, null, keyRecord);
           },
           log,
           comboName: modelStr,
@@ -267,7 +286,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
         body,
         models: augmentedModels,
         handleSingleModel: withCapacityAdapterStripping(
-          (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey),
+          (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, null, keyRecord),
           adapterAdded
         ),
         log,
@@ -346,6 +365,9 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     // Use shared chatCore
     const chatSettings = await getSettings();
     const providerThinking = (chatSettings.providerThinking || {})[provider] || null;
+    // Per-key overrides: tokenSaverOverride "off" forces every saver off for
+    // this key; customPromptOverride replaces the global custom prompt pair.
+    const keyFlags = resolveKeyFeatureFlags(keyRecord, chatSettings);
     const result = await handleChatCore({
       body: { ...body, model: `${provider}/${model}` },
       modelInfo,
@@ -357,17 +379,17 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       userAgent,
       apiKey,
       ccFilterNaming: !!chatSettings.ccFilterNaming,
-      rtkEnabled: !!chatSettings.rtkEnabled,
-      headroomEnabled: !!chatSettings.headroomEnabled,
+      rtkEnabled: keyFlags.rtkEnabled,
+      headroomEnabled: keyFlags.headroomEnabled,
       headroomUrl: chatSettings.headroomUrl || DEFAULT_HEADROOM_URL,
       headroomCompressUserMessages: !!chatSettings.headroomCompressUserMessages,
       headroomTimeoutMs: chatSettings.headroomTimeoutMs,
-      cavemanEnabled: !!chatSettings.cavemanEnabled,
+      cavemanEnabled: keyFlags.cavemanEnabled,
       cavemanLevel: chatSettings.cavemanLevel || "full",
-      ponytailEnabled: !!chatSettings.ponytailEnabled,
+      ponytailEnabled: keyFlags.ponytailEnabled,
       ponytailLevel: chatSettings.ponytailLevel || "full",
-      customPromptEnabled: !!chatSettings.customPromptEnabled,
-      customPrompt: chatSettings.customPrompt || "",
+      customPromptEnabled: keyFlags.customPromptEnabled,
+      customPrompt: keyFlags.customPrompt,
       reaAllowEnabled: !!chatSettings.reaAllowEnabled,
       pxpipeEnabled: !!chatSettings.pxpipeEnabled,
       pxpipeMinChars: chatSettings.pxpipeMinChars,

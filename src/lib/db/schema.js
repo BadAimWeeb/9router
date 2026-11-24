@@ -3,7 +3,7 @@
 // pre-change safety backup in migrate.js: when the stored version is lower,
 // one lightweight DB backup is taken before applying schema changes. Forgetting
 // to bump only skips that backup — it does NOT break the additive auto-sync.
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 export const PRAGMA_SQL = `
 PRAGMA journal_mode = WAL;
@@ -96,6 +96,14 @@ export const TABLES = {
       // instead of `-1m` on /v1/models; `[1m]`-suffixed requests are normalized
       // to the `-1m` catalog id either way. Additive column, synced on boot.
       announce1mVariants: "INTEGER NOT NULL DEFAULT 0 CHECK (announce1mVariants IN (0, 1))",
+      // Per-key token-saver control: "inherit" (global settings + client header)
+      // or "off" (RTK/headroom/caveman/ponytail stay off for this key even when
+      // globally enabled). Additive column, synced on boot.
+      tokenSaverOverride: "TEXT NOT NULL DEFAULT 'inherit'",
+      // Per-key custom system prompt override: JSON { enabled, prompt } or NULL
+      // to follow the global customPromptEnabled/customPrompt settings.
+      // Additive column, synced on boot.
+      customPromptOverride: "TEXT",
     },
     indexes: ["CREATE INDEX IF NOT EXISTS idx_ak_key ON apiKeys(key)"],
   },
