@@ -784,6 +784,25 @@ export default function APIPageClient({ machineId }) {
     }
   };
 
+  const handleUpdateAnnounce1m = async (id, announce1mVariants) => {
+    try {
+      const res = await fetch(`/api/keys/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ announce1mVariants }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || typeof data.key?.announce1mVariants !== "boolean") {
+        throw new Error(data.error || "Failed to update 1M announcement");
+      }
+      setKeys(prev => prev.map(key => key.id === id
+        ? { ...key, announce1mVariants: data.key.announce1mVariants }
+        : key));
+    } catch (error) {
+      console.error("Failed to update 1M announcement:", error);
+    }
+  };
+
   const maskKey = (fullKey) => {
     if (!fullKey || fullKey.length <= 10) return fullKey || "";
     return fullKey.slice(0, 6) + "•".repeat(fullKey.length - 10) + fullKey.slice(-4);
@@ -1199,6 +1218,21 @@ export default function APIPageClient({ machineId }) {
                     {promptRetentionStatus[key.id]?.error && (
                       <p role="alert" className="text-xs text-red-500 mt-1">{promptRetentionStatus[key.id].error}</p>
                     )}
+                  </div>
+                  <div className="mt-3">
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={key.announce1mVariants === true}
+                        onChange={(event) => handleUpdateAnnounce1m(key.id, event.target.checked)}
+                        className="accent-primary"
+                      />
+                      Announce 1M Codex models as <code>[1m]</code>
+                    </label>
+                    <p className="text-xs text-text-muted mt-1">
+                      List Codex extended-context variants under the <code>[1m]</code> marker (Claude Code style) instead of the
+                      <code> -1m</code> id on <code>/v1/models</code>. Requests with either suffix route to the same upstream model.
+                    </p>
                   </div>
                   <QuotaAccessControls
                     apiKey={key}

@@ -14,6 +14,7 @@ import { handleChatCore } from "open-sse/handlers/chatCore.js";
 import { DEFAULT_HEADROOM_URL } from "@/lib/headroom/detect";
 import { getTransform as getPxpipeTransform } from "@/lib/pxpipe/loader.js";
 import { appendPxpipeEvent } from "@/lib/pxpipe/events.js";
+import { getApiKeyByKey } from "@/lib/localDb";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { upstreamResponseHeaders } from "open-sse/utils/upstreamHeaders.js";
 import { handleComboChat, handleFusionChat, detectRequiredCapabilities } from "open-sse/services/combo.js";
@@ -26,7 +27,7 @@ import { resolveSessionIdentity } from "open-sse/utils/sessionManager.js";
 import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { getProjectIdForConnection } from "open-sse/services/projectId.js";
-import { stripModelContextMarker } from "open-sse/utils/modelMarkers.js";
+import { stripModelContextMarker, hasOneMCatalogVariant } from "open-sse/utils/modelMarkers.js";
 import { getKeyAccessContext, enforceKeyAccess, filterAdapterModels } from "../services/keyAccess.js";
 import { resolveSmartChoice } from "../services/systemoneRouter.js";
 
@@ -56,8 +57,17 @@ export async function handleChat(request, clientRawRequest = null) {
   // Claude Code marks a 1M-context request as `<model>[1m]`; the marker matches
   // no combo, alias or provider/model pair, so it must not reach resolution.
   // The capability travels in the anthropic-beta header, forwarded as-is.
+  // Codex extended-context catalog ids use the `-1m` suffix, so a `[1m]` marker
+  // on a model that has a `-1m` variant is normalized onto that id; other
+  // markers (e.g. Claude `claude-opus-5[1m]`) are just stripped — the beta
+  // header carries the capability.
   const { model: modelStr, contextMarker } = stripModelContextMarker(body.model);
   if (contextMarker) body.model = modelStr;
+  let announceMarker = contextMarker || null;
+  if (contextMarker && contextMarker.toLowerCase() === "1m" && hasOneMCatalogVariant(modelStr)) {
+    body.model = `${modelStr}-1m`;
+    announceMarker = null;
+  }
 
   const session = resolveSessionIdentity({ headers: clientRawRequest?.headers, body });
   const sessionId = session?.sessionId || null;
@@ -187,7 +197,23 @@ export async function handleChat(request, clientRawRequest = null) {
     });
   }
 
-  return handleSingleModelChat(body, modelStr, clientRawRequest, request, apiKey, contextMarker ? `${modelStr.slice(modelStr.indexOf("/") + 1)}[${contextMarker}]` : null);
+  const wantsMarkerAnnounce = announceMarker ? await keyPrefers1mMarkerAnnounce(apiKey) : false;
+  const announceTarget = wantsMarkerAnnounce && hasOneMCatalogVariant(modelStr)
+    ? `${modelStr}[1m]`
+    : null;
+  return handleSingleModelChat(body, modelStr, clientRawRequest, request, apiKey, announceTarget);
+}
+
+// True when the presented key opted into announcing Codex extended-context
+// variants as `[1m]` (the Claude Code marker) instead of the `-1m` id.
+async function keyPrefers1mMarkerAnnounce(apiKey) {
+  if (!apiKey) return false;
+  try {
+    const record = await getApiKeyByKey(apiKey);
+    return record?.announce1mVariants === true;
+  } catch {
+    return false;
+  }
 }
 
 /**

@@ -3,7 +3,7 @@
 // pre-change safety backup in migrate.js: when the stored version is lower,
 // one lightweight DB backup is taken before applying schema changes. Forgetting
 // to bump only skips that backup — it does NOT break the additive auto-sync.
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export const PRAGMA_SQL = `
 PRAGMA journal_mode = WAL;
@@ -92,6 +92,10 @@ export const TABLES = {
       // denied), "full", "anonymized-account" or "anonymized-aggregate".
       // Additive column, synced on boot; legacy/empty rows read as "none".
       quotaAccess: "TEXT",
+      // Announce Codex extended-context variants as `[1m]` (Claude Code marker)
+      // instead of `-1m` on /v1/models; `[1m]`-suffixed requests are normalized
+      // to the `-1m` catalog id either way. Additive column, synced on boot.
+      announce1mVariants: "INTEGER NOT NULL DEFAULT 0 CHECK (announce1mVariants IN (0, 1))",
     },
     indexes: ["CREATE INDEX IF NOT EXISTS idx_ak_key ON apiKeys(key)"],
   },

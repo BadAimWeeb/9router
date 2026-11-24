@@ -24,9 +24,12 @@ export async function PUT(request, { params }) {
   try {
     const { id } = await params;
     const body = await request.json();
-    const { isActive, access, quotaAccess, promptRetentionEnabled, name } = body;
+    const { isActive, access, quotaAccess, promptRetentionEnabled, announce1mVariants, name } = body;
     if (Object.hasOwn(body, "promptRetentionEnabled") && typeof promptRetentionEnabled !== "boolean") {
       return NextResponse.json({ error: "promptRetentionEnabled must be a boolean" }, { status: 400 });
+    }
+    if (Object.hasOwn(body, "announce1mVariants") && typeof announce1mVariants !== "boolean") {
+      return NextResponse.json({ error: "announce1mVariants must be a boolean" }, { status: 400 });
     }
     if (Object.hasOwn(body, "name")) {
       if (typeof name !== "string" || !name.trim()) {
@@ -46,6 +49,7 @@ export async function PUT(request, { params }) {
     if (isActive !== undefined) updateData.isActive = isActive;
     if (Object.hasOwn(body, "name")) updateData.name = name.trim();
     if (promptRetentionEnabled !== undefined) updateData.promptRetentionEnabled = promptRetentionEnabled;
+    if (announce1mVariants !== undefined) updateData.announce1mVariants = announce1mVariants;
     if (access !== undefined) {
       const checked = validateKeyAccessInput(access);
       if (!checked.ok) return NextResponse.json({ error: checked.error }, { status: 400 });

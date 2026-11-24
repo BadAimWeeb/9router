@@ -4,6 +4,7 @@
 - Rebase third-party and local changes onto decolua/9router `5ae63d22` (v0.5.123), dropping local commits already implemented upstream (Gemini 4 Hydrogen + long decode, Antigravity Hermes/OpenClaw fake-429 fixes, Codex GPT-6.2 model registration, upstream TTS `options` pass-through).
 
 ## Features
+- **Codex 1M variants**: requests may use either the `-1m` catalog id or the Claude Code `[1m]` marker (`cx/gpt-6.2-sol[1m]` routes as `cx/gpt-6.2-sol-1m`); `/v1/models` keeps listing the `-1m` ids, and a per-key "Announce 1M Codex models as `[1m]`" toggle (API Endpoint page, `announce1mVariants` on `PUT /api/keys/[id]`) swaps those entries to the `[1m]` form instead. Non-Codex `[1m]` markers keep their existing strip-and-beta-header behavior.
 - **Antigravity**: add Gemini 4 Neon with low/medium/high/xhigh thinking and model-specific pricing; keep account availability controlled by live model discovery.
 - **Cloudflare System One**: add Clef, Clef Omni and Clairic extraction, `fields` payloads, and persisted custom upstream model IDs (PR #5749).
 - **Codex**: add GPT-6.2 Sol and Astra upstream IDs; explicit `cx/` or `codex/` prefixes select OAuth while bare IDs retain OpenAI API routing.

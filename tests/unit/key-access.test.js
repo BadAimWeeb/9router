@@ -235,6 +235,21 @@ describe("/v1/models filtering", () => {
   it("leaves the list untouched for an unrestricted key", async () => {
     expect(await engine.filterModelsListForKey(await ctxFor("sk-open"), list)).toBe(list);
   });
+  it("rewrites codex -1m ids to [1m] when the key opts in, without breaking access rules", async () => {
+    fx.keys["sk-1m"] = { id: "1m", name: "key-1m", isActive: true, access: { restricted: false, allow: [] }, announce1mVariants: true };
+    fx.keys["sk-1m-restricted"] = { id: "1mr", name: "key-1mr", isActive: true, access: { restricted: true, allow: ["cx/*"] }, announce1mVariants: true };
+    const oneMList = [
+      { id: "cx/gpt-6.2-sol", object: "model", owned_by: "cx" },
+      { id: "cx/gpt-6.2-sol-1m", object: "model", owned_by: "cx" },
+      { id: "cx/gpt-6.2-astra", object: "model", owned_by: "cx" },
+      { id: "openai/model-a", object: "model", owned_by: "openai" },
+    ];
+    const ids = (await engine.filterModelsListForKey(await ctxFor("sk-1m"), oneMList)).map((m) => m.id);
+    expect(ids).toEqual(["cx/gpt-6.2-sol", "cx/gpt-6.2-sol[1m]", "cx/gpt-6.2-astra", "openai/model-a"]);
+    // Restricted + opted-in: the [1m] variant appears only while cx/* is allowed.
+    const restrictedIds = (await engine.filterModelsListForKey(await ctxFor("sk-1m-restricted"), oneMList)).map((m) => m.id);
+    expect(restrictedIds).toEqual(["cx/gpt-6.2-sol", "cx/gpt-6.2-sol[1m]", "cx/gpt-6.2-astra"]);
+  });
 });
 
 describe("capacity-adapter models", () => {

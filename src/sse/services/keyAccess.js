@@ -69,11 +69,16 @@ export async function getKeyAccessContext(request) {
   const apiKey = extractClientApiKey(request);
   if (!apiKey) return null;
   const record = await getApiKeyByKey(apiKey);
-  if (!record?.access?.restricted) return null;
+  if (!record) return null;
+  // Unrestricted keys keep the historical null context, except on /v1/models
+  // where the 1m-announcement preference still applies (checked via restricted).
+  if (!record?.access?.restricted && record?.announce1mVariants !== true) return null;
   return {
     keyId: record.id,
     keyName: record.name || record.id,
-    allow: record.access.allow || [],
+    allow: record.access?.allow || [],
+    restricted: record.access?.restricted === true,
+    announce1mVariants: record.announce1mVariants === true,
     _sets: null,
   };
 }
@@ -156,7 +161,7 @@ export function keyAccessDeniedResponse(ctx, requested) {
  * @returns {Promise<Response|null>} a 403 Response, or null when allowed.
  */
 export async function enforceKeyAccess(ctx, requested) {
-  if (!ctx) return null;
+  if (!ctx || ctx.restricted === false) return null;
   if (typeof requested !== "string" || !requested) return keyAccessDeniedResponse(ctx, String(requested ?? ""));
   const sets = await getAllowSets(ctx);
   const comboModels = await getComboModels(requested);
@@ -173,7 +178,7 @@ export async function enforceKeyAccess(ctx, requested) {
  * an unverifiable target is not an allowed one.
  */
 export async function enforceKeyAccessResolved(ctx, requested, provider, model) {
-  if (!ctx) return null;
+  if (!ctx || ctx.restricted === false) return null;
   const label = requested || (provider ? `${provider}/${model ?? ""}` : "");
   if (!provider || !model) return keyAccessDeniedResponse(ctx, label);
   const sets = await getAllowSets(ctx);
@@ -185,7 +190,7 @@ export async function enforceKeyAccessResolved(ctx, requested, provider, model) 
  * @param {string[]|null} comboModels - routing's own combo resolution for `requested`
  */
 export async function enforceKeyAccessProvider(ctx, requested, comboModels) {
-  if (!ctx) return null;
+  if (!ctx || ctx.restricted === false) return null;
   if (typeof requested !== "string" || !requested) return keyAccessDeniedResponse(ctx, String(requested ?? ""));
   const sets = await getAllowSets(ctx);
   const allowed = comboModels
@@ -201,7 +206,7 @@ export async function enforceKeyAccessProvider(ctx, requested, comboModels) {
  * model just shortens the fallback list, so combo failover is unaffected.
  */
 export async function filterAdapterModels(ctx, augmented, original) {
-  if (!ctx || !Array.isArray(augmented)) return augmented;
+  if (!ctx || ctx.restricted === false || !Array.isArray(augmented)) return augmented;
   const keep = new Set(original || []);
   const out = [];
   for (const m of augmented) {
@@ -215,20 +220,42 @@ export async function filterAdapterModels(ctx, augmented, original) {
 export async function filterModelsListForKey(ctx, list) {
   if (!ctx || !Array.isArray(list)) return list;
   const sets = await getAllowSets(ctx);
+  // Hand-built contexts (tests, internal callers) omit `restricted` and keep the
+  // historical enforcing behavior; only getKeyAccessContext explicitly marks
+  // unrestricted+opted-in keys with restricted: false.
+  const enforce = ctx.restricted !== false;
+  // Keys that opted in see Codex extended-context variants under their `[1m]`
+  // marker form; the `-1m` ids are hidden so exactly one variant is listed.
+  const announce1m = ctx.announce1mVariants === true;
   const out = [];
   for (const entry of list) {
     if (!entry?.id) continue;
     if (entry.owned_by === KEY_ACCESS_COMBO_OWNER) {
-      if (sets.combos.has(lower(entry.id))) out.push(entry);
+      if (!enforce || sets.combos.has(lower(entry.id))) out.push(entry);
       continue;
     }
     const info = await getModelInfo(entry.id);
     if (!info?.provider) continue;
-    if (KEY_ACCESS_PROVIDER_AS_MODEL_KINDS.includes(entry.kind)) {
-      if (sets.providers.has(lower(info.provider)) || sets.modelProviders.has(lower(info.provider))) out.push(entry);
+    if (announce1m && info.provider === "codex" && /[a-z0-9]-1m$/i.test(info.model)) {
+      const markerEntry = { ...entry, id: `${entry.id.slice(0, -3)}[1m]` };
+      if (enforce) {
+        if (sets.modelProviders.has(lower(info.provider)) || sets.models.has(canonicalModel(info.provider, info.model))) {
+          out.push({ ...markerEntry, owned_by: entry.owned_by });
+        }
+      } else {
+        out.push(markerEntry);
+      }
       continue;
     }
-    if (sets.modelProviders.has(lower(info.provider)) || sets.models.has(canonicalModel(info.provider, info.model))) out.push(entry);
+    if (enforce) {
+      if (KEY_ACCESS_PROVIDER_AS_MODEL_KINDS.includes(entry.kind)) {
+        if (sets.providers.has(lower(info.provider)) || sets.modelProviders.has(lower(info.provider))) out.push(entry);
+        continue;
+      }
+      if (sets.modelProviders.has(lower(info.provider)) || sets.models.has(canonicalModel(info.provider, info.model))) out.push(entry);
+      continue;
+    }
+    out.push(entry);
   }
   return out;
 }

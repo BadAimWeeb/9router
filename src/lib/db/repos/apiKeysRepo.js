@@ -14,6 +14,7 @@ function rowToKey(row) {
     machineId: row.machineId,
     isActive: row.isActive === 1 || row.isActive === true,
     promptRetentionEnabled: row.promptRetentionEnabled === 1 || row.promptRetentionEnabled === true,
+    announce1mVariants: row.announce1mVariants === 1 || row.announce1mVariants === true,
     createdAt: row.createdAt,
     access: keyAccessFromColumns(row.accessRestricted, row.accessAllow),
     quotaAccess: normalizeQuotaAccess(row.quotaAccess),
@@ -52,6 +53,7 @@ export async function createApiKey(name, machineId) {
     machineId,
     isActive: true,
     promptRetentionEnabled: false,
+    announce1mVariants: false,
     createdAt: new Date().toISOString(),
     access: { restricted: false, allow: [] },
   };
@@ -67,6 +69,9 @@ export async function updateApiKey(id, data) {
   if (Object.hasOwn(data, "promptRetentionEnabled") && typeof data.promptRetentionEnabled !== "boolean") {
     throw new Error("promptRetentionEnabled must be a boolean");
   }
+  if (Object.hasOwn(data, "announce1mVariants") && typeof data.announce1mVariants !== "boolean") {
+    throw new Error("announce1mVariants must be a boolean");
+  }
   const db = await getAdapter();
   let result = null;
   db.transaction(() => {
@@ -76,8 +81,8 @@ export async function updateApiKey(id, data) {
     const cols = keyAccessToColumns(merged.access);
     const quotaAccess = normalizeQuotaAccess(data.quotaAccess !== undefined ? data.quotaAccess : row.quotaAccess);
     db.run(
-      `UPDATE apiKeys SET key = ?, name = ?, machineId = ?, isActive = ?, accessRestricted = ?, accessAllow = ?, quotaAccess = ?, promptRetentionEnabled = ? WHERE id = ?`,
-      [merged.key, merged.name, merged.machineId, merged.isActive ? 1 : 0, cols.accessRestricted, cols.accessAllow, quotaAccess, merged.promptRetentionEnabled === true ? 1 : 0, id]
+      `UPDATE apiKeys SET key = ?, name = ?, machineId = ?, isActive = ?, accessRestricted = ?, accessAllow = ?, quotaAccess = ?, promptRetentionEnabled = ?, announce1mVariants = ? WHERE id = ?`,
+      [merged.key, merged.name, merged.machineId, merged.isActive ? 1 : 0, cols.accessRestricted, cols.accessAllow, quotaAccess, merged.promptRetentionEnabled === true ? 1 : 0, merged.announce1mVariants === true ? 1 : 0, id]
     );
     result = rowToKey(db.get(`SELECT * FROM apiKeys WHERE id = ?`, [id]));
   });
