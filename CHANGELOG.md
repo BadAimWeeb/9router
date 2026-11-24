@@ -1,3 +1,10 @@
+# v0.5.124-beta.3 (2026-11-24)
+
+## Fixes
+- **STT**: forward `timestamp_granularities` to OpenAI-compatible STT upstreams (PR #5840) — the multipart rebuild dropped the field, so word/segment timestamps from Groq/OpenAI were always empty. Forwarded (both `timestamp_granularities[]` and plain spellings, deduplicated, word/segment only) when `response_format` is `verbose_json`, which is when upstreams honour it. Fixes #5663.
+- **Models**: publish the runtime context window of openai-compatible nodes in `/v1/models` (PR #5808) — models behind a user-defined node always advertised the 200K default. Read the window the node reports (vLLM `max_model_len`, OpenRouter-style `context_length`/`context_window`/`limit.context`); for LM Studio lists without limits, read `loaded_context_length` from its native `/api/v0/models` on the same host (3s timeout, 10-minute skip on miss). Fixes #4618.
+- **Providers**: restore a missing early-return brace in the provider connection response sanitizer that broke module parsing of the dashboard providers API (and `next build`) after the beta.1 rebase.
+
 # v0.5.124-beta.1 (2026-11-24)
 
 ## Upstream
