@@ -52,7 +52,6 @@ export async function POST(request) {
     }
     const cleanCaps = sanitizeCaps(caps);
     const cleanTransport = sanitizeTransport(transport, type || "llm");
-    const cleanUpstreamModelId = sanitizeUpstreamModelId(upstreamModelId);
     if (upstreamFormat !== undefined && (type !== "tts" || !["", ...TTS_UPSTREAM_FORMATS].includes(upstreamFormat))) {
       return NextResponse.json({ error: "Invalid TTS upstream format" }, { status: 400 });
     }
