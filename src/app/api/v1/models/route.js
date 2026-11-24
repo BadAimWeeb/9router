@@ -109,7 +109,6 @@ const LIVE_MODEL_RESOLVERS = {
   pollinations: async (conn) => resolvePollinationsModels(conn, {
     proxyOptions: await resolveConnectionProxyConfig(conn.providerSpecificData || {}),
   }),
->>>>>>> b48db3ec (feat(discovery): publish typed free-tier catalogs and suggestions)
   kiro: async (conn) => {
     const result = await resolveKiroModels({
       accessToken: conn.accessToken,
