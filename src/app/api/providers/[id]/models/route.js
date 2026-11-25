@@ -32,7 +32,7 @@ import { resolvePollinationsModels } from "open-sse/services/pollinationsModels.
  * non-reasoning default for every live model. The local registry already knows
  * most of it, so only fill gaps and never overwrite what the provider said.
  */
-const withModelCapabilities = (provider, models) => {
+export function withModelCapabilities(provider, models) {
   if (!Array.isArray(models)) return [];
 
   return models.map((model) => {
@@ -42,9 +42,26 @@ const withModelCapabilities = (provider, models) => {
     const caps = getCapabilitiesForModel(provider, id);
     const levels = getThinkingLevels(provider, id);
 
+    // Node-reported runtime context (vLLM max_model_len, OpenRouter-style
+    // context_length/context_window/limit.context, LM Studio
+    // loaded_context_length) wins over the static registry guess; the importer
+    // caches it on the custom model so /v1/models announces the saved value.
+    const liveContextCandidates = [
+      model?.loaded_context_length,
+      model?.max_model_len,
+      model?.context_length,
+      model?.context_window,
+      model?.limit?.context,
+    ];
+    let liveContext;
+    for (const value of liveContextCandidates) {
+      const n = Number(value);
+      if (Number.isFinite(n) && n > 0) { liveContext = Math.floor(n); break; }
+    }
+
     return {
       ...model,
-      contextLength: model.contextLength ?? caps.contextWindow,
+      contextLength: liveContext ?? model.contextLength ?? caps.contextWindow,
       isVL: model.isVL ?? caps.vision,
       isReasoning: model.isReasoning ?? caps.reasoning,
       ...(Array.isArray(levels) && levels.length > 0 ? { thinking_levels: levels } : {}),

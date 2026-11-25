@@ -611,6 +611,22 @@ export default function ProviderDetailPage() {
     }
   };
 
+  // Upsert a custom model's caps (contextWindow etc.). The POST merges into the
+  // stored record, so passing the full caps object updates only given fields.
+  const handleEditCustomModel = async (modelId, caps, type = "llm", providerAliasOverride = providerStorageAlias) => {
+    const res = await fetch("/api/models/custom", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ providerAlias: providerAliasOverride, id: modelId, type, ...(caps ? { caps } : {}) }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || "Failed to update model");
+    }
+    await fetchCustomModels();
+    if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("customModelChanged"));
+  };
+
   // Fetch Qoder model list and automatically add to available models
   const handleImportQoderModels = async () => {
     if (importingQoderModels) return;
@@ -1212,7 +1228,8 @@ export default function ProviderDetailPage() {
           onCopy={copy}
           onSetAlias={handleSetAlias}
           onDeleteAlias={handleDeleteAlias}
-          onAddCustomModel={(modelId) => handleAddCustomModel(modelId, "llm", providerStorageAlias)}
+          onAddCustomModel={(modelId, type, providerAliasOverride, caps) => handleAddCustomModel(modelId, type || "llm", providerAliasOverride || providerStorageAlias, caps)}
+          onEditCustomModel={(modelId, caps) => handleEditCustomModel(modelId, caps)}
           onDeleteCustomModel={(modelId) => handleDeleteCustomModel(modelId, "llm", providerStorageAlias)}
           connections={connections}
           isAnthropic={isAnthropicCompatible}

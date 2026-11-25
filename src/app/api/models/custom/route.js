@@ -5,13 +5,17 @@ import { TTS_UPSTREAM_FORMATS } from "open-sse/config/ttsCodecs.js";
 
 export const dynamic = "force-dynamic";
 
-// Whitelist capability keys to boolean values — ignore anything else
+// Whitelist capability keys to boolean values, plus a numeric contextWindow
+// (saved by "Import from /models" and manually editable; /v1/models announces
+// this stored value instead of re-asking the node).
 function sanitizeCaps(caps) {
   if (!caps || typeof caps !== "object") return null;
   const clean = {};
   for (const key of Object.keys(CAPACITY_META)) {
     if (typeof caps[key] === "boolean") clean[key] = caps[key];
   }
+  const contextWindow = Number(caps.contextWindow);
+  if (Number.isFinite(contextWindow) && contextWindow > 0) clean.contextWindow = Math.floor(contextWindow);
   return Object.keys(clean).length ? clean : null;
 }
 

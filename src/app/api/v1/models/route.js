@@ -592,6 +592,19 @@ export async function buildModelsList(kindFilter, options = {}) {
       let liveModelKindById = new Map();
       let liveCapabilitiesById = new Map();
 
+      // Compatible providers mirror the GUI list ("Add OpenAI-compatible models
+      // manually or import them from the /models endpoint."): the connection's
+      // enabledModels plus its custom models. The static registry and the node's
+      // live /models catalog do NOT leak in — import from /models is how a model
+      // gets announced. Discovery runs only while the GUI list is still empty,
+      // so a fresh connection has something to show before the first import.
+      let guiOnly = false;
+      if (isCompatibleProvider) {
+        const customCount = customModels.filter((m) =>
+          m?.id && (m.providerAlias === staticAlias || m.providerAlias === outputAlias || m.providerAlias === providerId)).length;
+        guiOnly = hasExplicitEnabledModels || customCount > 0;
+      }
+
       let rawModelIds = hasExplicitEnabledModels
         ? Array.from(
             new Set(
@@ -601,11 +614,12 @@ export async function buildModelsList(kindFilter, options = {}) {
             ),
           )
         : providerModels.map((model) => model.id);
+      if (guiOnly && !hasExplicitEnabledModels) rawModelIds = [];
 
       // Runtime context windows reported by a compatible node itself (e.g. the window
       // LM Studio loaded). They beat the static table, which can only guess from the id.
       let liveContextById = new Map();
-      if (isCompatibleProvider && rawModelIds.length === 0 && !skipDynamicFetch) {
+      if (isCompatibleProvider && rawModelIds.length === 0 && !skipDynamicFetch && !guiOnly) {
         const compatibleModels = await fetchCompatibleModels(conn);
         rawModelIds = compatibleModels.map((m) => m.id);
         liveContextById = new Map(
@@ -619,7 +633,7 @@ export async function buildModelsList(kindFilter, options = {}) {
       // -thinking/-agentic variants per account). On failure, fall back to
       // whatever rawModelIds already holds.
       const liveResolver = LIVE_MODEL_RESOLVERS[providerId];
-      if (liveResolver && !hasExplicitEnabledModels) {
+      if (liveResolver && !hasExplicitEnabledModels && !guiOnly) {
         try {
           const live = await liveResolver(conn);
           if (Array.isArray(live?.models) && (live.models.length || providerId === "cohere" || providerId === "pollinations")) {
@@ -656,6 +670,7 @@ export async function buildModelsList(kindFilter, options = {}) {
         .filter((modelId) => typeof modelId === "string" && modelId.trim() !== "");
 
       const customModelKindById = new Map();
+      const customContextById = new Map();
       const customModelIds = customModels
         .filter((m) => {
           if (!m?.id) return false;
@@ -668,7 +683,13 @@ export async function buildModelsList(kindFilter, options = {}) {
         })
         .map((m) => {
           const modelId = String(m.id).trim();
-          if (modelId) customModelKindById.set(modelId, getModelKind(m) || LLM_KIND);
+          if (modelId) {
+            customModelKindById.set(modelId, getModelKind(m) || LLM_KIND);
+            // Manually saved context window (from import or hand edit) beats the
+            // node's live report and the static table.
+            const saved = Number(m.caps?.contextWindow);
+            if (Number.isFinite(saved) && saved > 0) customContextById.set(modelId, Math.floor(saved));
+          }
           return modelId;
         })
         .filter((modelId) => modelId !== "");
@@ -730,7 +751,9 @@ export async function buildModelsList(kindFilter, options = {}) {
         // objects; the camelCase `capabilities` block stays for compatibility.
         if (kind === LLM_KIND || allowAsLlm) {
           Object.assign(model, reasoningMetadata(providerId, modelId));
-          const liveContext = liveContextById.get(modelId) ?? liveContextById.get(`${outputAlias}/${modelId}`);
+          // Manual edit (stored caps) wins over the node's live report.
+          const savedContext = customContextById.get(modelId);
+          const liveContext = savedContext ?? liveContextById.get(modelId) ?? liveContextById.get(`${outputAlias}/${modelId}`);
           let contextWindow = Number.isFinite(liveContext) ? liveContext : caps?.contextWindow;
           if (Number.isFinite(liveContext) && model.capabilities) {
             model.capabilities = { ...model.capabilities, contextWindow: liveContext };
