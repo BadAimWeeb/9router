@@ -1,3 +1,16 @@
+# v0.5.124-beta.5 (2026-11-25)
+
+## Features
+- **`/v1/models` mirrors the compatible-node GUI list**: openai-compatible and anthropic-compatible connections announce exactly the models shown in their GUI list (enabledModels + custom models) — the static registry and the node's live /models catalog no longer leak in; Import from /models is how a model gets announced. Manually added models absent from the node's catalog are announced. Discovery still runs while the GUI list is empty so a fresh connection lists something before the first import. Hardcoded providers are unaffected.
+- **Import from /models caches context size**: each imported model's node-reported context window (vLLM `max_model_len`, OpenRouter-style `context_length`/`context_window`/`limit.context`, LM Studio `loaded_context_length`) is stored on the custom model, and the context size is manually editable per model in the GUI (edit button on the row); the stored value wins over the node's live report in `/v1/models`, and clearing it removes the override.
+
+# v0.5.124-beta.3 (2026-11-24)
+
+## Fixes
+- **STT**: forward `timestamp_granularities` to OpenAI-compatible STT upstreams (PR #5840) — the multipart rebuild dropped the field, so word/segment timestamps from Groq/OpenAI were always empty. Forwarded (both `timestamp_granularities[]` and plain spellings, deduplicated, word/segment only) when `response_format` is `verbose_json`, which is when upstreams honour it. Fixes #5663.
+- **Models**: publish the runtime context window of openai-compatible nodes in `/v1/models` (PR #5808) — models behind a user-defined node always advertised the 200K default. Read the window the node reports (vLLM `max_model_len`, OpenRouter-style `context_length`/`context_window`/`limit.context`); for LM Studio lists without limits, read `loaded_context_length` from its native `/api/v0/models` on the same host (3s timeout, 10-minute skip on miss). Fixes #4618.
+- **Providers**: restore a missing early-return brace in the provider connection response sanitizer that broke module parsing of the dashboard providers API (and `next build`) after the beta.1 rebase.
+
 # v0.5.124-beta.1 (2026-11-24)
 
 ## Upstream
